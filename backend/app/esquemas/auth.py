@@ -20,6 +20,15 @@ class Registro(BaseModel):
     negocio: NegocioNuevo
 
 
+class Login(BaseModel):
+    email: EmailStr
+    password: Contrasena
+
+
+class TokenRenovacion(BaseModel):
+    token_renovacion: Annotated[str, Field(min_length=20, max_length=512)]
+
+
 class NegocioSalida(BaseModel):
     id: uuid.UUID
     nombre: str
@@ -37,10 +46,6 @@ class Sesion(BaseModel):
     token_acceso: str
     tipo: str = "Bearer"
     expira_en_segundos: int
+    token_renovacion: str
     usuario: UsuarioSalida
     negocio: NegocioSalida
-
-
-class Login(BaseModel):
-    email: EmailStr
-    password: Contrasena

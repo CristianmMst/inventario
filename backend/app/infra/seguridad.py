@@ -1,5 +1,7 @@
-"""Contraseñas con Argon2id y JWT de acceso HS256 de vida corta (RNF-11, plan.md §5)."""
+"""Contraseñas con Argon2id, JWT de acceso HS256 de vida corta y tokens opacos (RNF-11)."""
 
+import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -27,12 +29,23 @@ def verificar_contrasena(contrasena: str, hash_: str) -> bool:
 
 
 def hash_secreto(secreto: str) -> str:
-    """Mismo esquema para refresh tokens y API keys: se guarda hash, nunca el valor."""
+    """Para secretos que se comparan uno a uno (API keys): Argon2id, como una contraseña."""
     return _hasher.hash(secreto)
 
 
 def verificar_secreto(secreto: str, hash_: str) -> bool:
     return verificar_contrasena(secreto, hash_)
+
+
+def generar_token_opaco() -> str:
+    """256 bits aleatorios en base64url. Nunca un JWT."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_token_opaco(token: str) -> str:
+    """Para tokens de alta entropía basta SHA-256: permite buscar por hash y no guarda el
+    valor. Argon2 queda para lo que un humano teclea."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def crear_token_acceso(usuario_id: uuid.UUID, negocio_id: uuid.UUID) -> tuple[str, int]:

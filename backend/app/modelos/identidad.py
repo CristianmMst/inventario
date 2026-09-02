@@ -1,6 +1,7 @@
-"""usuarios, negocios, membresias — RF-AUT-001, RF-AUT-004, RN-19."""
+"""usuarios, negocios, membresias, refresh_tokens — RF-AUT-001..004, RN-19."""
 
 import uuid
+from datetime import datetime
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import CITEXT
@@ -41,3 +42,20 @@ class Membresia(ConId, ConMarcasDeTiempo, Base):
         sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False, index=True
     )
     rol: Mapped[str] = mapped_column(rol_membresia, nullable=False)
+
+
+class RefreshToken(ConId, Base):
+    """Token de renovación opaco: solo se guarda su hash. Rotación por familia (plan.md §5)."""
+
+    __tablename__ = "refresh_tokens"
+
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(sa.Text, nullable=False, unique=True)
+    familia_id: Mapped[uuid.UUID] = mapped_column(sa.Uuid, nullable=False, index=True)
+    expira_en: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    revocado_en: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )

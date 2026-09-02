@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.esquemas.auth import Login, Registro, Sesion
+from app.esquemas.auth import Login, Registro, Sesion, TokenRenovacion
 from app.infra.db import sesion as sesion_db
 from app.servicios import auth as servicio
 
@@ -20,5 +20,17 @@ async def registro(datos: Registro, sesion: SesionDb) -> Sesion:
 
 @router.post("/login", response_model=Sesion)
 async def login(datos: Login, sesion: SesionDb) -> Sesion:
-    """Inicio de sesión: devuelve un token de acceso de vida corta (RF-AUT-002)."""
+    """Inicio de sesión: token de acceso de vida corta y token de renovación (RF-AUT-002)."""
     return await servicio.iniciar_sesion(sesion, datos)
+
+
+@router.post("/refresh", response_model=Sesion)
+async def refresh(datos: TokenRenovacion, sesion: SesionDb) -> Sesion:
+    """Renueva la sesión sin contraseña; el token de renovación rota en cada uso (RF-AUT-003)."""
+    return await servicio.renovar(sesion, datos)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(datos: TokenRenovacion, sesion: SesionDb) -> None:
+    """Revoca el token de renovación (RF-AUT-002)."""
+    await servicio.cerrar_sesion(sesion, datos)
