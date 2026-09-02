@@ -87,5 +87,6 @@ class ProductoSalida(BaseModel):
     costo_actual: DineroSalida | None
     precio_venta: DineroSalida | None
     stock_minimo: str | None
+    stock_actual: str
     estado: Literal["activo", "archivado"]
     codigos_barras: list[str]

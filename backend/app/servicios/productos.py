@@ -28,13 +28,23 @@ from app.repositorios.catalogo import (
     RepositorioUnidades,
 )
 from app.repositorios.identidad import RepositorioIdentidad
+from app.repositorios.stock import RepositorioStock
+
+
+async def _con_stock(
+    sesion: AsyncSession, negocio_id: uuid.UUID, productos: list[m.Producto]
+) -> list[ProductoSalida]:
+    """Arma las salidas con moneda base y stock actual en dos consultas, no una por fila."""
+    moneda_base = await _Contexto(sesion, negocio_id).moneda_base()
+    stocks = await RepositorioStock(sesion).actuales(negocio_id, [p.id for p in productos])
+    return [a_salida(p, moneda_base, stocks[p.id]) for p in productos]
 
 
 def no_encontrado() -> err.NoEncontrado:
     return err.NoEncontrado("PRODUCTO_NO_ENCONTRADO", "Ese producto no existe.")
 
 
-def a_salida(p: m.Producto, moneda_base: str) -> ProductoSalida:
+def a_salida(p: m.Producto, moneda_base: str, stock: Cantidad) -> ProductoSalida:
     def dinero(monto: Decimal | None, moneda: str) -> DineroSalida | None:
         if monto is None:
             return None
@@ -57,6 +67,7 @@ def a_salida(p: m.Producto, moneda_base: str) -> ProductoSalida:
         costo_actual=dinero(p.costo_actual, moneda_base),
         precio_venta=dinero(p.precio_venta, moneda_base),
         stock_minimo=Cantidad(p.stock_minimo).a_api() if p.stock_minimo is not None else None,
+        stock_actual=stock.a_api(),
         estado=p.estado,  # type: ignore[arg-type]
         codigos_barras=[c.codigo for c in p.codigos_barras],
     )
@@ -200,7 +211,7 @@ async def obtener(
         producto = await RepositorioProductos(sesion).por_id(negocio_id, producto_id)
         if producto is None:
             raise no_encontrado()
-        return a_salida(producto, await _Contexto(sesion, negocio_id).moneda_base())
+        return (await _con_stock(sesion, negocio_id, [producto]))[0]
 
 
 async def editar(
@@ -282,7 +293,7 @@ async def por_codigo_barras(
                 f"Ningún producto tiene el código {codigo}.",
                 {"codigo": codigo},
             )
-        return a_salida(producto, await _Contexto(sesion, negocio_id).moneda_base())
+        return (await _con_stock(sesion, negocio_id, [producto]))[0]
 
 
 async def buscar(
@@ -300,10 +311,10 @@ async def buscar(
         filas = await RepositorioBusqueda(sesion).por_texto(
             negocio_id, texto, pagina.limit + 1, despues
         )
-        moneda_base = await _Contexto(sesion, negocio_id).moneda_base()
+        salidas = await _con_stock(sesion, negocio_id, [p for p, _ in filas])
     rangos = {p.id: r for p, r in filas}
     return paginar(
-        [a_salida(p, moneda_base) for p, _ in filas],
+        salidas,
         pagina.limit,
         clave_de=lambda s: {"r": rangos[s.id], "id": str(s.id)},
     )
@@ -330,9 +341,9 @@ async def listar(
             limite=pagina.limit + 1,
             despues_de=despues,
         )
-        moneda_base = await _Contexto(sesion, negocio_id).moneda_base()
+        salidas = await _con_stock(sesion, negocio_id, filas)
     return paginar(
-        [a_salida(p, moneda_base) for p in filas],
+        salidas,
         pagina.limit,
         clave_de=lambda s: {"n": s.nombre, "id": str(s.id)},
     )

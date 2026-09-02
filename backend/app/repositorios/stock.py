@@ -6,6 +6,7 @@ servicio de movimientos, en la misma transacción que el movimiento y con la fil
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -117,3 +118,35 @@ class RepositorioStock:
             )
             for f in filas
         ]
+
+    async def actuales(
+        self, negocio_id: uuid.UUID, producto_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, Cantidad]:
+        """Stock de varios productos de una vez; los que no tienen fila están en cero."""
+        if not producto_ids:
+            return {}
+        filas = (
+            await self._s.execute(
+                sa.select(StockProducto.producto_id, StockProducto.cantidad).where(
+                    StockProducto.negocio_id == negocio_id,
+                    StockProducto.producto_id.in_(producto_ids),
+                )
+            )
+        ).all()
+        encontrados = {f.producto_id: Cantidad(f.cantidad) for f in filas}
+        return {pid: encontrados.get(pid, Cantidad(Decimal(0))) for pid in producto_ids}
+
+    async def detalle(
+        self, negocio_id: uuid.UUID, producto_id: uuid.UUID
+    ) -> tuple[Cantidad, datetime | None]:
+        fila = (
+            await self._s.execute(
+                sa.select(StockProducto.cantidad, StockProducto.actualizado_en).where(
+                    StockProducto.producto_id == producto_id,
+                    StockProducto.negocio_id == negocio_id,
+                )
+            )
+        ).one_or_none()
+        if fila is None:
+            return Cantidad(Decimal(0)), None
+        return Cantidad(fila.cantidad), fila.actualizado_en
