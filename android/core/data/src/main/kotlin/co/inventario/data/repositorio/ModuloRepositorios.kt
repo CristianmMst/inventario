@@ -13,4 +13,7 @@ abstract class ModuloRepositorios {
 
     @Binds
     abstract fun catalogo(impl: RepositorioCatalogoApi): RepositorioCatalogo
+
+    @Binds
+    abstract fun movimientos(impl: RepositorioMovimientosApi): RepositorioMovimientos
 }

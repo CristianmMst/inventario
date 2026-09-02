@@ -37,8 +37,6 @@ class FichaProductoViewModel @AssistedInject constructor(
     private val _estado = MutableStateFlow(FichaUiState())
     val estado: StateFlow<FichaUiState> = _estado.asStateFlow()
 
-    init { recargar() }
-
     fun recargar() {
         _estado.update { it.copy(cargando = true, error = null) }
         viewModelScope.launch {

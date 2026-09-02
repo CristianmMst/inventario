@@ -43,6 +43,7 @@ dependencies {
     implementation(project(":feature:auth"))
     implementation(project(":feature:escaneo"))
     implementation(project(":feature:catalogo"))
+    implementation(project(":feature:movimientos"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

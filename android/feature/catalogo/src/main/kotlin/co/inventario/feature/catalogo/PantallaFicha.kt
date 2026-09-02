@@ -14,6 +14,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,8 @@ fun PantallaFicha(
     ),
 ) {
     val estado by vm.estado.collectAsStateWithLifecycle()
+    // Al volver de registrar un movimiento la pantalla se recompone: el stock se pide de nuevo (RF-INV-003).
+    LaunchedEffect(Unit) { vm.recargar() }
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Dimensiones.espacio),
         verticalArrangement = Arrangement.spacedBy(Dimensiones.espacio),

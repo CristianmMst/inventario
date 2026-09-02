@@ -1,11 +1,8 @@
 package co.inventario.app.navegacion
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -19,7 +16,11 @@ import co.inventario.feature.catalogo.PantallaAltaProducto
 import co.inventario.feature.catalogo.PantallaBusqueda
 import co.inventario.feature.catalogo.PantallaFicha
 import co.inventario.feature.catalogo.PantallaResolverCodigo
+import co.inventario.domain.modelo.TipoMovimiento
 import co.inventario.feature.escaneo.PantallaEscaneo
+import co.inventario.feature.movimientos.PantallaConteo
+import co.inventario.feature.movimientos.PantallaHistorial
+import co.inventario.feature.movimientos.PantallaMovimiento
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -115,18 +116,25 @@ fun NavegacionInventario(haySesion: Boolean, monedaBase: () -> String, sesionCer
         }
         composable<Ruta.Movimiento> { entrada ->
             val ruta = entrada.toRoute<Ruta.Movimiento>()
-            Marcador("Movimiento ${ruta.tipo} (T-084/T-085)")
+            PantallaMovimiento(
+                productoId = ruta.productoId,
+                tipo = TipoMovimiento.desde(ruta.tipo),
+                // Tras registrar se vuelve a la ficha, que recarga el stock desde el servidor.
+                alRegistrar = { nav.popBackStack() },
+                alCancelar = { nav.popBackStack() },
+            )
         }
-        composable<Ruta.Conteo> { Marcador("Conteo (T-086)") }
-        composable<Ruta.Historial> { Marcador("Historial (T-087)") }
+        composable<Ruta.Conteo> { entrada ->
+            val ruta = entrada.toRoute<Ruta.Conteo>()
+            PantallaConteo(productoId = ruta.productoId, alRegistrar = { nav.popBackStack() }, alCancelar = { nav.popBackStack() })
+        }
+        composable<Ruta.Historial> { entrada ->
+            val ruta = entrada.toRoute<Ruta.Historial>()
+            PantallaHistorial(productoId = ruta.productoId, alVolver = { nav.popBackStack() })
+        }
     }
 }
 
 private fun NavHostController.volverAlInicio() {
     popBackStack(Ruta.Inicio, inclusive = false)
-}
-
-@Composable
-private fun Marcador(texto: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(texto) }
 }
