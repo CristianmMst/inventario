@@ -111,7 +111,10 @@ async def aplicar_movimiento(
     stock = RepositorioStock(sesion)
     actual = await stock.bloquear(contexto.negocio_id, producto.id)
     nuevo = stock_resultante(actual, tipo, cantidad, direccion=direccion)
-    if direccion == -1 and nuevo.valor < 0 and not forzado:
+    # RN-03: salida y merma no dejan el stock bajo cero... salvo override explícito (RN-04).
+    # Solo queda marcado como forzado el movimiento que de verdad saltó el bloqueo.
+    salta_bloqueo = tipo.resta_stock and nuevo.valor < 0
+    if salta_bloqueo and not forzado:
         raise err.Conflicto(
             "STOCK_INSUFICIENTE",
             f"Solo hay {actual.a_api()} de «{producto.nombre}» y pides {cantidad.a_api()}.",
@@ -130,7 +133,7 @@ async def aplicar_movimiento(
         direccion=direccion,
         motivo=motivo,
         nota=nota,
-        forzado=forzado,
+        forzado=salta_bloqueo,
         stock_resultante=nuevo.valor,
         anula_movimiento_id=anula_movimiento_id,
         recepcion_linea_id=recepcion_linea_id,
