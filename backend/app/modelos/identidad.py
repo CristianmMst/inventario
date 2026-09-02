@@ -59,3 +59,22 @@ class RefreshToken(ConId, Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
     )
+
+
+class ApiKey(ConId, Base):
+    """Credencial de servicio `inv_<prefijo8>_<secreto>`: prefijo en claro para localizar la
+    fila, secreto con Argon2id, mostrado una sola vez (RF-AUT-005, RNF-11)."""
+
+    __tablename__ = "api_keys"
+
+    negocio_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    prefijo: Mapped[str] = mapped_column(sa.String(8), nullable=False, unique=True)
+    secreto_hash: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    ultimo_uso_en: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    revocado_en: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
