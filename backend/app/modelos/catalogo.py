@@ -1,9 +1,10 @@
 """unidades_medida, categorias, productos, codigos_barras — RF-CAT-001..014."""
 
 import uuid
+from decimal import Decimal
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import CITEXT
+from sqlalchemy.dialects.postgresql import CITEXT, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.modelos.base import Base, ConId, ConMarcasDeTiempo
@@ -38,3 +39,48 @@ class Categoria(ConId, ConMarcasDeTiempo, Base):
         sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False, index=True
     )
     nombre: Mapped[str] = mapped_column(CITEXT, nullable=False)
+
+
+ESTADOS_PRODUCTO = ("activo", "archivado")
+EXPRESION_BUSQUEDA = (
+    "to_tsvector('espanol_sin_tildes'::regconfig, coalesce(nombre, '') || ' ' || coalesce(sku, ''))"
+)
+
+
+class Producto(ConId, ConMarcasDeTiempo, Base):
+    """RF-CAT-001: una unidad de stock por producto (RN-06); costo y precio vigentes sin
+    historial (RF-CAT-013, RN-09); `busqueda` generada con índice GIN (RNF-02)."""
+
+    __tablename__ = "productos"
+    __table_args__ = (
+        sa.UniqueConstraint("negocio_id", "sku"),
+        sa.CheckConstraint("estado in ('activo', 'archivado')", name="estado_valido"),
+        sa.CheckConstraint(
+            "stock_minimo is null or stock_minimo >= 0", name="stock_minimo_no_negativo"
+        ),
+        sa.Index(
+            "ix_productos_busqueda",
+            "busqueda",
+            postgresql_using="gin",
+            postgresql_with={"fastupdate": "off"},
+        ),
+        sa.Index("ix_productos_negocio_id_categoria_id", "negocio_id", "categoria_id"),
+    )
+
+    negocio_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False
+    )
+    sku: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    nombre: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("categorias.id", ondelete="SET NULL")
+    )
+    unidad_codigo: Mapped[str] = mapped_column(
+        sa.ForeignKey("unidades_medida.codigo"), nullable=False
+    )
+    costo_actual: Mapped[Decimal | None] = mapped_column(sa.Numeric(18, 4))
+    precio_venta: Mapped[Decimal | None] = mapped_column(sa.Numeric(18, 4))
+    stock_minimo: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 3))
+    imagen_id: Mapped[uuid.UUID | None] = mapped_column(sa.Uuid)
+    estado: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="activo")
+    busqueda: Mapped[str] = mapped_column(TSVECTOR, sa.Computed(EXPRESION_BUSQUEDA, persisted=True))
