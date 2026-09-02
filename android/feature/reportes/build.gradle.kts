@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "co.inventario.feature.catalogo"
+    namespace = "co.inventario.feature.reportes"
 }
 
 dependencies {
@@ -13,16 +13,11 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
-    implementation(project(":core:imagenes"))
-
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.coil.compose)
-    implementation(libs.coil.network.okhttp)
 
     testImplementation(libs.turbine)
-    testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
 }

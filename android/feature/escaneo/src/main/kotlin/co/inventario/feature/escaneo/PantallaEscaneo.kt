@@ -51,6 +51,7 @@ import java.util.concurrent.Executors
 fun PantallaEscaneo(
     alLeerCodigo: (String) -> Unit,
     irABuscar: () -> Unit,
+    irAMenu: () -> Unit,
     vm: EscaneoViewModel = hiltViewModel(),
 ) {
     val estado by vm.estado.collectAsStateWithLifecycle()
@@ -95,7 +96,10 @@ fun PantallaEscaneo(
                 }
                 BotonSecundario(if (estado.tecleando) "Ocultar teclado" else "Teclear código", { vm.teclear(!estado.tecleando) }, Modifier.weight(1f))
             }
-            BotonSecundario("Buscar por nombre", irABuscar)
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                BotonSecundario("Buscar por nombre", irABuscar, Modifier.weight(1f))
+                BotonSecundario("Compras y más", irAMenu, Modifier.weight(1f))
+            }
         }
     }
 }

@@ -21,4 +21,16 @@ sealed interface Ruta {
     @Serializable data class Conteo(val productoId: String) : Ruta
     @Serializable data class Historial(val productoId: String) : Ruta
     @Serializable data object Busqueda : Ruta
+
+    // H9: compras, facturas, reportes y ajustes
+    @Serializable data object Menu : Ruta
+    @Serializable data object Proveedores : Ruta
+    @Serializable data object Ordenes : Ruta
+    @Serializable data class Orden(val ordenId: String) : Ruta
+    @Serializable data object NuevaOrden : Ruta
+    @Serializable data class Recepcion(val ordenId: String? = null) : Ruta
+    @Serializable data object Facturas : Ruta
+    @Serializable data object NuevaFactura : Ruta
+    @Serializable data object Reportes : Ruta
+    @Serializable data object Ajustes : Ruta
 }

@@ -35,6 +35,7 @@ import co.inventario.designsystem.componentes.CampoTexto
 import co.inventario.designsystem.componentes.MensajeError
 import co.inventario.designsystem.tema.Dimensiones
 import co.inventario.domain.modelo.LimitesImagen
+import co.inventario.imagenes.CompresorImagen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

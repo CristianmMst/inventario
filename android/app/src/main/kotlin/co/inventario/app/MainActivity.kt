@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
                 NavegacionInventario(
                     haySesion = haySesion,
                     monedaBase = { almacenSesion.negocio()?.monedaBase ?: "COP" },
+                    nombreNegocio = { almacenSesion.negocio()?.nombre ?: "Mi negocio" },
                     sesionCerrada = sesionEventos.cerradas,
                 )
             }

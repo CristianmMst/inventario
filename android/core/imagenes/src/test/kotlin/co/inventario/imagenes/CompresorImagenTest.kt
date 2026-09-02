@@ -1,4 +1,4 @@
-package co.inventario.feature.catalogo
+package co.inventario.imagenes
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

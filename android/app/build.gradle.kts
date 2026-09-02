@@ -44,6 +44,10 @@ dependencies {
     implementation(project(":feature:escaneo"))
     implementation(project(":feature:catalogo"))
     implementation(project(":feature:movimientos"))
+    implementation(project(":feature:compras"))
+    implementation(project(":feature:facturas"))
+    implementation(project(":feature:reportes"))
+    implementation(project(":feature:ajustes"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
