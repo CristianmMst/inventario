@@ -10,14 +10,16 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import co.inventario.feature.auth.PantallaLogin
 import co.inventario.feature.auth.PantallaRegistro
+import co.inventario.feature.escaneo.PantallaEscaneo
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Esqueleto del NavHost (T-074). El grafo de operación llega en H8; aquí están el arranque y
- * la autenticación. `sesionCerrada` viene de la capa de red: al cerrarse la sesión se vuelve
- * al inicio de sesión desde cualquier pantalla (RF-AUT-003).
+ * NavHost de la app (T-074). El inicio es el escaneo (HU-03): la cámara es la puerta de todo.
+ * `sesionCerrada` viene de la capa de red: al cerrarse la sesión se vuelve al inicio de sesión
+ * desde cualquier pantalla (RF-AUT-003).
  */
 @Composable
 fun NavegacionInventario(haySesion: Boolean, sesionCerrada: Flow<Unit>) {
@@ -48,10 +50,21 @@ fun NavegacionInventario(haySesion: Boolean, sesionCerrada: Flow<Unit>) {
             )
         }
         composable<Ruta.Inicio> {
-            // H8 sustituye este marcador por la pantalla de escaneo.
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Sesión iniciada")
-            }
+            PantallaEscaneo(
+                // T-080/T-081 resuelven el código contra el catálogo; hasta entonces se muestra.
+                alLeerCodigo = { codigo -> nav.navigate(Ruta.AltaProducto(codigo)) },
+                irABuscar = { nav.navigate(Ruta.Busqueda) },
+            )
         }
+        composable<Ruta.AltaProducto> { entrada ->
+            val ruta = entrada.toRoute<Ruta.AltaProducto>()
+            Marcador("Código leído: ${ruta.codigoBarras ?: "ninguno"}")
+        }
+        composable<Ruta.Busqueda> { Marcador("Búsqueda (T-083)") }
     }
+}
+
+@Composable
+private fun Marcador(texto: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(texto) }
 }

@@ -41,6 +41,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:auth"))
+    implementation(project(":feature:escaneo"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
