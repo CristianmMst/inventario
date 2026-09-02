@@ -7,6 +7,9 @@ from collections.abc import Iterator
 import pytest
 from testcontainers.community.postgres import PostgresContainer
 
+# Catálogos globales sembrados por migración: no se vacían entre tests.
+TABLAS_SEMILLA = {"unidades_medida", "motivos_movimiento"}
+
 
 @pytest.fixture(scope="session")
 def postgres_url() -> Iterator[str]:
@@ -74,7 +77,7 @@ async def _limpiar_tablas(request: pytest.FixtureRequest):  # noqa: ANN202
     from app.infra.db import motor as _motor
     from app.modelos.base import Base
 
-    tablas = [t.name for t in reversed(Base.metadata.sorted_tables)]
+    tablas = [t.name for t in reversed(Base.metadata.sorted_tables) if t.name not in TABLAS_SEMILLA]
     if not tablas:
         return
     async with _motor().begin() as con:
