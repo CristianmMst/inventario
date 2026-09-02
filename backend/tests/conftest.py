@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import tempfile
 from collections.abc import Iterator
 
 import pytest
@@ -22,6 +23,7 @@ def postgres_url() -> Iterator[str]:
             f"@{host}:{puerto}/{contenedor.dbname}"
         )
         os.environ["DATABASE_URL"] = url
+        os.environ["IMAGENES_DIR"] = tempfile.mkdtemp(prefix="imagenes-prueba-")
         yield url
 
 

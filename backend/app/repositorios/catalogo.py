@@ -73,6 +73,7 @@ class RepositorioProductos:
                     selectinload(Producto.categoria),
                     selectinload(Producto.unidad),
                     selectinload(Producto.codigos_barras),
+                    selectinload(Producto.imagen),
                 )
                 .execution_options(populate_existing=True)
             )
@@ -99,6 +100,7 @@ class RepositorioProductos:
                 selectinload(Producto.categoria),
                 selectinload(Producto.unidad),
                 selectinload(Producto.codigos_barras),
+                selectinload(Producto.imagen),
             )
             .execution_options(populate_existing=True)
             .order_by(Producto.nombre, Producto.id)
@@ -187,6 +189,7 @@ class RepositorioBusqueda:
             selectinload(Producto.categoria),
             selectinload(Producto.unidad),
             selectinload(Producto.codigos_barras),
+            selectinload(Producto.imagen),
         ).execution_options(populate_existing=True)
 
     async def por_codigo_barras(self, negocio_id: uuid.UUID, codigo: str) -> Producto | None:

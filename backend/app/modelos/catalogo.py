@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import CITEXT, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modelos.base import Base, ConId, ConMarcasDeTiempo
+from app.modelos.imagenes import Imagen
 
 TIPOS_UNIDAD = ("discreta", "continua")
 
@@ -82,7 +83,9 @@ class Producto(ConId, ConMarcasDeTiempo, Base):
     costo_actual: Mapped[Decimal | None] = mapped_column(sa.Numeric(18, 4))
     precio_venta: Mapped[Decimal | None] = mapped_column(sa.Numeric(18, 4))
     stock_minimo: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 3))
-    imagen_id: Mapped[uuid.UUID | None] = mapped_column(sa.Uuid)
+    imagen_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("imagenes.id", ondelete="SET NULL")
+    )
     estado: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="activo")
     busqueda: Mapped[str] = mapped_column(TSVECTOR, sa.Computed(EXPRESION_BUSQUEDA, persisted=True))
 
@@ -91,6 +94,7 @@ class Producto(ConId, ConMarcasDeTiempo, Base):
     codigos_barras: Mapped[list["CodigoBarras"]] = relationship(
         lazy="raise", cascade="all, delete-orphan", order_by="CodigoBarras.codigo"
     )
+    imagen: Mapped["Imagen | None"] = relationship(lazy="raise", foreign_keys=[imagen_id])
 
 
 class CodigoBarras(ConId, Base):

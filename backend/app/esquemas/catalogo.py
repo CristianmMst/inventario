@@ -78,6 +78,15 @@ class ProductoEdicion(BaseModel):
     stock_minimo: CantidadCadena | None = None
 
 
+class ImagenSalida(BaseModel):
+    id: uuid.UUID
+    url: str
+    mime: str
+    ancho: int
+    alto: int
+    bytes: int
+
+
 class ProductoSalida(BaseModel):
     id: uuid.UUID
     sku: str
@@ -90,3 +99,4 @@ class ProductoSalida(BaseModel):
     stock_actual: str
     estado: Literal["activo", "archivado"]
     codigos_barras: list[str]
+    imagen: ImagenSalida | None = None

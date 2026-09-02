@@ -29,6 +29,7 @@ from app.repositorios.catalogo import (
 )
 from app.repositorios.identidad import RepositorioIdentidad
 from app.repositorios.stock import RepositorioStock
+from app.servicios.imagenes import a_salida as imagen_salida
 
 
 async def _con_stock(
@@ -70,6 +71,7 @@ def a_salida(p: m.Producto, moneda_base: str, stock: Cantidad) -> ProductoSalida
         stock_actual=stock.a_api(),
         estado=p.estado,  # type: ignore[arg-type]
         codigos_barras=[c.codigo for c in p.codigos_barras],
+        imagen=imagen_salida(p.imagen) if p.imagen is not None else None,
     )
 
 
