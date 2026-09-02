@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import httpx
 import pytest
@@ -78,16 +79,19 @@ async def test_rf_cat_014_insertar_entre_dos_paginas_no_duplica_ni_salta(
     # Llegan filas nuevas, más recientes y también intercaladas, entre una página y otra.
     await _insertar(motor, [base + timedelta(minutes=10), base + timedelta(minutes=2, seconds=30)])
 
-    segunda = await _pagina(motor, ParametrosPagina(limit=2, cursor=primera.cursor_siguiente))
-    tercera = await _pagina(motor, ParametrosPagina(limit=2, cursor=segunda.cursor_siguiente))
-    cuarta = await _pagina(motor, ParametrosPagina(limit=2, cursor=tercera.cursor_siguiente))
+    paginas = [primera]
+    while paginas[-1].tiene_mas:
+        paginas.append(
+            await _pagina(motor, ParametrosPagina(limit=2, cursor=paginas[-1].cursor_siguiente))
+        )
 
-    vistos = [f["id"] for p in (primera, segunda, tercera, cuarta) for f in p.datos]
+    vistos = [f["id"] for p in paginas for f in p.datos]
     assert len(vistos) == len(set(vistos)), "hay duplicados entre páginas"
-    # Los 5 originales se ven todos: la fila intercalada aparece, la más reciente que la
-    # primera página no (llegó después y quedó "antes" del cursor), y nada se salta.
+    # Los 5 originales se ven todos y la intercalada también; la más reciente no, porque
+    # quedó por delante del cursor. Nada se salta.
     assert set(originales) <= set(vistos)
-    assert cuarta.tiene_mas is False and cuarta.cursor_siguiente is None
+    assert len(vistos) == 6
+    assert paginas[-1].cursor_siguiente is None
 
 
 def test_constitucion_2_cursor_ida_y_vuelta() -> None:
@@ -105,7 +109,7 @@ _router = APIRouter(prefix="/api/v1/_prueba")
 
 
 @_router.get("/paginado")
-async def _paginado(p: ParametrosPagina = Depends(paginacion)) -> dict[str, object]:
+async def _paginado(p: Annotated[ParametrosPagina, Depends(paginacion)]) -> dict[str, object]:
     return {"limit": p.limit, "cursor": p.cursor}
 
 

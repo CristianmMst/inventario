@@ -9,7 +9,7 @@ import base64
 import binascii
 import json
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -26,7 +26,7 @@ class ParametrosPagina(BaseModel):
     limit: int = Field(default=LIMITE_POR_DEFECTO, ge=1, le=LIMITE_MAXIMO)
 
 
-class Pagina(BaseModel, Generic[T]):
+class Pagina[T](BaseModel):
     datos: list[T]
     cursor_siguiente: str | None
     tiene_mas: bool
@@ -55,7 +55,7 @@ def decodificar_cursor(cursor: str) -> dict[str, Any]:
     return clave
 
 
-def paginar(filas: list[T], limit: int, *, clave_de: Callable[[T], dict[str, Any]]) -> Pagina[T]:
+def paginar[T](filas: list[T], limit: int, *, clave_de: Callable[[T], dict[str, Any]]) -> Pagina[T]:
     """Recibe hasta `limit + 1` filas ya ordenadas y arma la página.
 
     La fila sobrante solo sirve para saber que hay más; el cursor apunta a la última fila
