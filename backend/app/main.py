@@ -1,6 +1,7 @@
 from fastapi import APIRouter, FastAPI
 
 from app.api.errores import registrar_manejadores
+from app.api.v1 import auth
 from app.config import obtener_ajustes
 from app.infra.logging import configurar_logging, middleware_request_id
 
@@ -19,4 +20,5 @@ async def salud() -> dict[str, str]:
     return {"estado": "ok"}
 
 
+api_v1.include_router(auth.router)
 app.include_router(api_v1)

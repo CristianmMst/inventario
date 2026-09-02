@@ -7,7 +7,7 @@ _contador = itertools.count(1)
 
 
 def correo_unico() -> str:
-    return f"prueba-{uuid.uuid4().hex[:12]}@ejemplo.test"
+    return f"prueba-{uuid.uuid4().hex[:12]}@ejemplo.com"
 
 
 def nombre_unico(prefijo: str) -> str:
