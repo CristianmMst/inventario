@@ -38,6 +38,13 @@ NombreProducto = Annotated[
 ]
 
 
+CodigoBarras = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
+
+
+class CodigoBarrasNuevo(BaseModel):
+    codigo: CodigoBarras
+
+
 class DineroEntrada(BaseModel):
     monto: MontoCadena
     moneda: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
@@ -56,6 +63,7 @@ class ProductoNuevo(BaseModel):
     costo_actual: DineroEntrada | None = None
     precio_venta: DineroEntrada | None = None
     stock_minimo: CantidadCadena | None = None
+    codigos_barras: list[CodigoBarras] = []
 
 
 class ProductoEdicion(BaseModel):

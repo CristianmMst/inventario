@@ -1,6 +1,7 @@
 """unidades_medida, categorias, productos, codigos_barras — RF-CAT-001..014."""
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -87,3 +88,25 @@ class Producto(ConId, ConMarcasDeTiempo, Base):
 
     categoria: Mapped[Categoria | None] = relationship(lazy="raise")
     unidad: Mapped[UnidadMedida] = relationship(lazy="raise")
+    codigos_barras: Mapped[list["CodigoBarras"]] = relationship(
+        lazy="raise", cascade="all, delete-orphan", order_by="CodigoBarras.codigo"
+    )
+
+
+class CodigoBarras(ConId, Base):
+    """RN-05: un código pertenece a un solo producto dentro del negocio; el índice único
+    resuelve además el escaneo en una sola lectura (RNF-01)."""
+
+    __tablename__ = "codigos_barras"
+    __table_args__ = (sa.UniqueConstraint("negocio_id", "codigo"),)
+
+    negocio_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False
+    )
+    producto_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    codigo: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )

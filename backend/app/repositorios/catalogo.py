@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modelos.catalogo import Categoria, Producto, UnidadMedida
+from app.modelos.catalogo import Categoria, CodigoBarras, Producto, UnidadMedida
 
 
 class RepositorioUnidades:
@@ -68,7 +68,11 @@ class RepositorioProductos:
             await self._s.execute(
                 sa.select(Producto)
                 .where(Producto.negocio_id == negocio_id, Producto.id == producto_id)
-                .options(selectinload(Producto.categoria), selectinload(Producto.unidad))
+                .options(
+                    selectinload(Producto.categoria),
+                    selectinload(Producto.unidad),
+                    selectinload(Producto.codigos_barras),
+                )
                 .execution_options(populate_existing=True)
             )
         ).scalar_one_or_none()
@@ -81,3 +85,33 @@ class RepositorioProductos:
                 )
             )
         ).scalar_one_or_none() is True
+
+
+class RepositorioCodigosBarras:
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._s = sesion
+
+    async def por_codigo(self, negocio_id: uuid.UUID, codigo: str) -> CodigoBarras | None:
+        return (
+            await self._s.execute(
+                sa.select(CodigoBarras).where(
+                    CodigoBarras.negocio_id == negocio_id, CodigoBarras.codigo == codigo
+                )
+            )
+        ).scalar_one_or_none()
+
+    async def producto_duenio(self, negocio_id: uuid.UUID, codigo: str) -> Producto | None:
+        """El producto al que pertenece un código, para explicar el 409 (RN-05)."""
+        return (
+            await self._s.execute(
+                sa.select(Producto)
+                .join(CodigoBarras, CodigoBarras.producto_id == Producto.id)
+                .where(CodigoBarras.negocio_id == negocio_id, CodigoBarras.codigo == codigo)
+            )
+        ).scalar_one_or_none()
+
+    def guardar(self, codigo: CodigoBarras) -> None:
+        self._s.add(codigo)
+
+    async def borrar(self, codigo: CodigoBarras) -> None:
+        await self._s.delete(codigo)

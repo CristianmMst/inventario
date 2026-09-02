@@ -21,6 +21,7 @@ from app.esquemas.catalogo import (
 from app.modelos import catalogo as m
 from app.repositorios.catalogo import (
     RepositorioCategorias,
+    RepositorioCodigosBarras,
     RepositorioProductos,
     RepositorioUnidades,
 )
@@ -55,7 +56,7 @@ def a_salida(p: m.Producto, moneda_base: str) -> ProductoSalida:
         precio_venta=dinero(p.precio_venta, moneda_base),
         stock_minimo=Cantidad(p.stock_minimo).a_api() if p.stock_minimo is not None else None,
         estado=p.estado,  # type: ignore[arg-type]
-        codigos_barras=[],
+        codigos_barras=[c.codigo for c in p.codigos_barras],
     )
 
 
@@ -126,6 +127,31 @@ class _Contexto:
         return sku
 
 
+async def _codigo_duplicado(
+    sesion: AsyncSession, negocio_id: uuid.UUID, codigo: str
+) -> err.Conflicto:
+    """RN-05: el 409 dice a qué producto pertenece ya el código."""
+    duenio = await RepositorioCodigosBarras(sesion).producto_duenio(negocio_id, codigo)
+    return err.Conflicto(
+        "CODIGO_BARRAS_DUPLICADO",
+        f"El código {codigo} ya está asignado a «{duenio.nombre if duenio else '?'}».",
+        {
+            "codigo": codigo,
+            "producto_id": str(duenio.id) if duenio else None,
+            "producto_nombre": duenio.nombre if duenio else None,
+        },
+    )
+
+
+async def _asegurar_codigos_libres(
+    sesion: AsyncSession, negocio_id: uuid.UUID, codigos: list[str]
+) -> None:
+    repo = RepositorioCodigosBarras(sesion)
+    for codigo in codigos:
+        if await repo.por_codigo(negocio_id, codigo) is not None:
+            raise await _codigo_duplicado(sesion, negocio_id, codigo)
+
+
 def _sku_duplicado(sku: str) -> err.Conflicto:
     return err.Conflicto(
         "SKU_DUPLICADO", f"Ya existe un producto con el SKU «{sku}».", {"sku": sku}
@@ -141,6 +167,8 @@ async def crear(
             moneda_base = await ctx.moneda_base()
             unidad = await ctx.unidad(datos.unidad_codigo)
             await ctx.categoria(datos.categoria_id)
+            codigos = sorted(set(datos.codigos_barras))
+            await _asegurar_codigos_libres(sesion, negocio_id, codigos)
             producto = m.Producto(
                 negocio_id=negocio_id,
                 sku=await ctx.sku_disponible(datos.sku),
@@ -153,6 +181,10 @@ async def crear(
             )
             ctx.productos.guardar(producto)
             await sesion.flush()
+            for codigo in codigos:
+                RepositorioCodigosBarras(sesion).guardar(
+                    m.CodigoBarras(negocio_id=negocio_id, producto_id=producto.id, codigo=codigo)
+                )
             producto_id = producto.id
     except IntegrityError as e:
         raise _sku_duplicado(datos.sku or "") from e
@@ -200,3 +232,36 @@ async def editar(
     except IntegrityError as e:
         raise _sku_duplicado(datos.sku or "") from e
     return await obtener(sesion, negocio_id, producto_id)
+
+
+async def agregar_codigo(
+    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID, codigo: str
+) -> ProductoSalida:
+    """RF-CAT-003: asigna un código más al producto. Ya usado responde 409 con el dueño (RN-05)."""
+    repo = RepositorioCodigosBarras(sesion)
+    async with sesion.begin():
+        producto = await RepositorioProductos(sesion).por_id(negocio_id, producto_id)
+        if producto is None:
+            raise no_encontrado()
+        if await repo.por_codigo(negocio_id, codigo) is not None:
+            raise await _codigo_duplicado(sesion, negocio_id, codigo)
+        repo.guardar(m.CodigoBarras(negocio_id=negocio_id, producto_id=producto_id, codigo=codigo))
+    return await obtener(sesion, negocio_id, producto_id)
+
+
+async def quitar_codigo(
+    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID, codigo: str
+) -> None:
+    repo = RepositorioCodigosBarras(sesion)
+    async with sesion.begin():
+        producto = await RepositorioProductos(sesion).por_id(negocio_id, producto_id)
+        if producto is None:
+            raise no_encontrado()
+        existente = await repo.por_codigo(negocio_id, codigo)
+        if existente is None or existente.producto_id != producto_id:
+            raise err.NoEncontrado(
+                "CODIGO_BARRAS_NO_ENCONTRADO",
+                "Ese producto no tiene ese código.",
+                {"codigo": codigo},
+            )
+        await repo.borrar(existente)
