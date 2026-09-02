@@ -99,3 +99,14 @@ async def test_rnf_01_la_busqueda_por_codigo_usa_el_indice_unico(sesion: AsyncSe
         ).scalars()
     )
     assert "uq_codigos_barras_negocio_id_codigo" in plan, plan
+
+
+async def test_rn_14_un_codigo_desconocido_nunca_crea_nada(
+    cliente: httpx.AsyncClient, sesion: AsyncSession
+) -> None:
+    auth = await _auth(cliente)
+    for codigo in ["111", "222", "333"]:
+        r = await cliente.get(f"/api/v1/productos/por-codigo/{codigo}", headers=auth)
+        assert r.status_code == 404
+    total = (await sesion.execute(sa.text("select count(*) from productos"))).scalar_one()
+    assert total == 0

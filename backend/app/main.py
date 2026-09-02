@@ -17,7 +17,9 @@ from app.api.v1 import (
     productos,
     proveedores,
     recepciones,
+    reportes,
     unidades,
+    webhooks,
 )
 from app.config import obtener_ajustes
 from app.infra.logging import configurar_logging, middleware_request_id
@@ -54,4 +56,6 @@ api_v1.include_router(recepciones.router)
 api_v1.include_router(imagenes.router)
 api_v1.include_router(facturas.router)
 api_v1.include_router(eventos.router)
+api_v1.include_router(webhooks.router)
+api_v1.include_router(reportes.router)
 app.include_router(api_v1)

@@ -185,3 +185,26 @@ async def test_rf_aut_007_el_historial_de_un_producto_ajeno_no_existe(
     r = await cliente.get(f"/api/v1/productos/{p['id']}/movimientos", headers=b)
     assert r.status_code == 404
     assert (await cliente.get("/api/v1/movimientos", headers=b)).json()["datos"] == []
+
+
+async def test_rf_rep_004_el_historial_completo_se_exporta_recorriendo_el_cursor(
+    cliente: httpx.AsyncClient,
+) -> None:
+    """RF-REP-004: el historial por producto es exportable: paginado, un consumidor lo recorre
+    entero sin saltos ni repeticiones y cada fila lleva su stock resultante."""
+    auth = await _sesion(cliente)
+    p = await _producto(cliente, auth)
+    for _ in range(7):
+        await _mover(
+            cliente, auth, producto_id=p["id"], tipo="entrada", cantidad="1", motivo="carga_inicial"
+        )
+    filas: list[dict] = []
+    pagina = await _historial(cliente, auth, p["id"], limit=3)
+    filas += pagina["datos"]
+    while pagina["tiene_mas"]:
+        pagina = await _historial(
+            cliente, auth, p["id"], limit=3, cursor=pagina["cursor_siguiente"]
+        )
+        filas += pagina["datos"]
+    assert len(filas) == 7 and len({f["id"] for f in filas}) == 7
+    assert [f["stock_resultante"] for f in filas] == [f"{n}.000" for n in range(7, 0, -1)]

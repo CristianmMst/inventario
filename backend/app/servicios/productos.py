@@ -200,6 +200,12 @@ async def crear(
             )
             ctx.productos.guardar(producto)
             await sesion.flush()
+            # La instantánea de stock nace con el producto: los reportes leen la bandera.
+            stock = RepositorioStock(sesion)
+            await stock.bloquear(negocio_id, producto.id)
+            await stock.actualizar(
+                negocio_id, producto.id, Cantidad(Decimal(0)), stock_minimo=producto.stock_minimo
+            )
             for codigo in codigos:
                 RepositorioCodigosBarras(sesion).guardar(
                     m.CodigoBarras(negocio_id=negocio_id, producto_id=producto.id, codigo=codigo)
@@ -274,6 +280,12 @@ async def editar(
             if "stock_minimo" in enviados:
                 unidad = await ctx.unidad(producto.unidad_codigo)
                 producto.stock_minimo = _stock_minimo(datos.stock_minimo, _unidad_dominio(unidad))
+                # Cambiar el mínimo recalcula la bandera sin emitir alerta: no es un movimiento.
+                stock = RepositorioStock(sesion)
+                actual = await stock.bloquear(negocio_id, producto.id)
+                await stock.actualizar(
+                    negocio_id, producto.id, actual, stock_minimo=producto.stock_minimo
+                )
             await sesion.flush()
             despues = _instantanea(producto, moneda_base)
             cambios = {

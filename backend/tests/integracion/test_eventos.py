@@ -157,8 +157,9 @@ async def test_rn_22_bajar_del_minimo_emite_una_vez_y_no_se_repite_hasta_recuper
     await _mover(
         cliente, auth, producto_id=p["id"], tipo="entrada", cantidad="10", motivo="carga_inicial"
     )  # 16
+    # Dos reposiciones: la carga inicial de 12 (el producto nació con 0 ≤ mínimo) y esta.
     repuestos = await _eventos(cliente, auth, tipo="stock.repuesto")
-    assert len(repuestos) == 1 and repuestos[0]["payload"]["stock_actual"] == "16.000"
+    assert len(repuestos) == 2 and repuestos[-1]["payload"]["stock_actual"] == "16.000"
 
     await _mover(
         cliente, auth, producto_id=p["id"], tipo="salida", cantidad="8", motivo="venta"
@@ -191,13 +192,14 @@ async def test_rn_22_el_evento_de_stock_se_escribe_en_la_misma_transaccion_que_e
     auth = await _sesion(cliente)
     p = await _producto(cliente, auth, stock_minimo="5")
     await _mover(
-        cliente, auth, producto_id=p["id"], tipo="entrada", cantidad="3", motivo="carga_inicial"
+        cliente, auth, producto_id=p["id"], tipo="entrada", cantidad="12", motivo="carga_inicial"
     )
+    await _mover(cliente, auth, producto_id=p["id"], tipo="salida", cantidad="8", motivo="venta")
     filas = (await sesion.execute(sa.text("select tipo from eventos order by secuencia"))).scalars()
     assert list(filas)[-2:] == ["movimiento.registrado", "stock.bajo_minimo"]
 
 
-async def test_rf_int_004_un_consumidor_se_pone_al_dia_desde_una_secuencia_sin_saltos_ni_repeticiones(
+async def test_rf_int_004_un_consumidor_se_pone_al_dia_por_secuencia_sin_saltos_ni_repeticiones(
     cliente: httpx.AsyncClient,
 ) -> None:
     auth = await _sesion(cliente)
