@@ -23,6 +23,7 @@ from app.api.v1 import (
 )
 from app.config import obtener_ajustes
 from app.infra.logging import configurar_logging, middleware_request_id
+from app.infra.openapi import enriquecer_openapi
 
 ajustes = obtener_ajustes()
 configurar_logging(json=ajustes.log_json)
@@ -59,3 +60,6 @@ api_v1.include_router(eventos.router)
 api_v1.include_router(webhooks.router)
 api_v1.include_router(reportes.router)
 app.include_router(api_v1)
+
+# RNF-17: seguridad, ejemplos de petición y errores documentados en el 100% de las rutas.
+app.openapi = lambda: enriquecer_openapi(app)  # type: ignore[method-assign]

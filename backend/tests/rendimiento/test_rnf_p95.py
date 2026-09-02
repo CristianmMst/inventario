@@ -30,7 +30,9 @@ CALENTAMIENTO = 3
 
 pytestmark = [
     pytest.mark.rendimiento,
-    pytest.mark.skipif(not URL, reason="RENDIMIENTO_URL no definida: estos tests miden contra la base sembrada"),
+    pytest.mark.skipif(
+        not URL, reason="RENDIMIENTO_URL no definida: estos tests miden contra la base sembrada"
+    ),
 ]
 
 
@@ -57,7 +59,9 @@ def medir(peticion: Callable[[], httpx.Response], n: int = N) -> tuple[float, fl
 def cliente() -> httpx.Client:
     with httpx.Client(base_url=URL or "", timeout=30) as c:
         sesion = c.post("/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD})
-        assert sesion.status_code == 200, f"no se pudo iniciar sesión con la cuenta de la semilla: {sesion.text}"
+        assert sesion.status_code == 200, (
+            f"no se pudo iniciar sesión con la cuenta de la semilla: {sesion.text}"
+        )
         c.headers["Authorization"] = f"Bearer {sesion.json()['token_acceso']}"
         yield c
 
@@ -72,10 +76,14 @@ def producto_de_referencia(cliente: httpx.Client) -> dict:
 
 
 def informar(nombre: str, p95_ms: float, mediana_ms: float, umbral_ms: float) -> None:
-    print(f"\n{nombre}: p95 {p95_ms:.0f} ms · mediana {mediana_ms:.0f} ms · umbral {umbral_ms:.0f} ms")
+    print(
+        f"\n{nombre}: p95 {p95_ms:.0f} ms · mediana {mediana_ms:.0f} ms · umbral {umbral_ms:.0f} ms"
+    )
 
 
-def test_rnf_01_busqueda_por_codigo_de_barras_bajo_300_ms(cliente: httpx.Client, producto_de_referencia: dict) -> None:
+def test_rnf_01_busqueda_por_codigo_de_barras_bajo_300_ms(
+    cliente: httpx.Client, producto_de_referencia: dict
+) -> None:
     codigos = producto_de_referencia["codigos_barras"]
     assert codigos, "el producto de referencia no tiene código de barras"
     p95_ms, mediana = medir(lambda: cliente.get(f"/api/v1/productos/por-codigo/{codigos[0]}"))
@@ -97,14 +105,22 @@ def test_rnf_02_busqueda_por_texto_bajo_500_ms(cliente: httpx.Client) -> None:
     assert p95_ms < 500
 
 
-def test_rnf_03_registro_de_movimiento_bajo_400_ms(cliente: httpx.Client, producto_de_referencia: dict) -> None:
+def test_rnf_03_registro_de_movimiento_bajo_400_ms(
+    cliente: httpx.Client, producto_de_referencia: dict
+) -> None:
     producto_id = producto_de_referencia["id"]
 
     def peticion() -> httpx.Response:
         return cliente.post(
             "/api/v1/movimientos",
             headers={"Idempotency-Key": str(uuid.uuid4())},
-            json={"producto_id": producto_id, "tipo": "entrada", "cantidad": "1", "motivo": "carga_inicial", "nota": "medición RNF-03"},
+            json={
+                "producto_id": producto_id,
+                "tipo": "entrada",
+                "cantidad": "1",
+                "motivo": "carga_inicial",
+                "nota": "medición RNF-03",
+            },
         )
 
     p95_ms, mediana = medir(peticion)
@@ -117,7 +133,13 @@ def test_rnf_03_registro_de_movimiento_bajo_400_ms(cliente: httpx.Client, produc
     [
         ("/api/v1/reportes/valorizacion", {}),
         ("/api/v1/reportes/bajo-minimo", {}),
-        ("/api/v1/reportes/compras", {"desde": (date.today() - timedelta(days=365)).isoformat(), "hasta": date.today().isoformat()}),
+        (
+            "/api/v1/reportes/compras",
+            {
+                "desde": (date.today() - timedelta(days=365)).isoformat(),
+                "hasta": date.today().isoformat(),
+            },
+        ),
     ],
     ids=["valorizacion", "bajo-minimo", "compras"],
 )
