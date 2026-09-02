@@ -10,6 +10,7 @@ from app.api.v1 import (
     motivos,
     movimientos,
     negocio,
+    ordenes_compra,
     productos,
     proveedores,
     unidades,
@@ -44,4 +45,5 @@ api_v1.include_router(movimientos.router)
 api_v1.include_router(movimientos.router_stock)
 api_v1.include_router(conteos.router)
 api_v1.include_router(proveedores.router)
+api_v1.include_router(ordenes_compra.router)
 app.include_router(api_v1)

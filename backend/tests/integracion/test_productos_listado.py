@@ -124,7 +124,7 @@ async def _cargar(
 
 async def test_rf_cat_014_filtro_por_condicion_de_stock(cliente: httpx.AsyncClient) -> None:
     auth = await _auth(cliente)
-    agotado = await _producto(cliente, auth, nombre="Agotado", stock_minimo="2")
+    await _producto(cliente, auth, nombre="Agotado", stock_minimo="2")
     bajo = await _producto(cliente, auth, nombre="Bajo mínimo", stock_minimo="5")
     con = await _producto(cliente, auth, nombre="Con stock", stock_minimo="1")
     sin_minimo = await _producto(cliente, auth, nombre="Sin mínimo")

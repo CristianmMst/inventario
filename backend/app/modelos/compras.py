@@ -1,11 +1,14 @@
 """proveedores, ordenes_compra, recepciones — RF-COM-001..013."""
 
 import uuid
+from datetime import date, datetime
+from decimal import Decimal
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modelos.base import Base, ConId, ConMarcasDeTiempo
+from app.modelos.catalogo import Producto
 
 ESTADOS_PROVEEDOR = ("activo", "archivado")
 
@@ -30,3 +33,74 @@ class Proveedor(ConId, ConMarcasDeTiempo, Base):
     direccion: Mapped[str | None] = mapped_column(sa.Text)
     notas: Mapped[str | None] = mapped_column(sa.Text)
     estado: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="activo")
+
+
+ESTADOS_ORDEN = (
+    "borrador",
+    "emitida",
+    "parcialmente_recibida",
+    "recibida",
+    "cerrada_con_faltante",
+    "cancelada",
+)
+
+
+class OrdenCompra(ConId, ConMarcasDeTiempo, Base):
+    """RF-COM-002 / RF-COM-003. Herramienta de planificación opcional (RN-11)."""
+
+    __tablename__ = "ordenes_compra"
+    __table_args__ = (
+        sa.UniqueConstraint("negocio_id", "secuencia"),
+        sa.CheckConstraint(
+            "estado in ('borrador', 'emitida', 'parcialmente_recibida', 'recibida',"
+            " 'cerrada_con_faltante', 'cancelada')",
+            name="estado_valido",
+        ),
+        sa.Index("ix_ordenes_compra_negocio_id_proveedor_id", "negocio_id", "proveedor_id"),
+    )
+
+    negocio_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False
+    )
+    proveedor_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("proveedores.id", ondelete="RESTRICT"), nullable=False
+    )
+    secuencia: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    estado: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="borrador")
+    fecha_esperada: Mapped[date | None] = mapped_column(sa.Date)
+    moneda: Mapped[str] = mapped_column(sa.CHAR(3), nullable=False)
+    notas: Mapped[str | None] = mapped_column(sa.Text)
+    motivo_cierre: Mapped[str | None] = mapped_column(sa.Text)
+    emitida_en: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    cerrada_en: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+    lineas: Mapped[list["OrdenCompraLinea"]] = relationship(
+        lazy="raise", cascade="all, delete-orphan", order_by="OrdenCompraLinea.posicion"
+    )
+    proveedor: Mapped[Proveedor] = relationship(lazy="raise")
+
+    @property
+    def numero(self) -> str:
+        return f"OC-{self.secuencia:06d}"
+
+
+class OrdenCompraLinea(ConId, Base):
+    """La cantidad pendiente se calcula (ordenada - Σ recibida), no se guarda (plan.md §3.2)."""
+
+    __tablename__ = "ordenes_compra_lineas"
+    __table_args__ = (
+        sa.UniqueConstraint("orden_id", "producto_id"),
+        sa.CheckConstraint("cantidad_ordenada > 0", name="cantidad_positiva"),
+    )
+
+    orden_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("ordenes_compra.id", ondelete="CASCADE"), nullable=False
+    )
+    producto_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("productos.id", ondelete="RESTRICT"), nullable=False
+    )
+    posicion: Mapped[int] = mapped_column(sa.SmallInteger, nullable=False)
+    cantidad_ordenada: Mapped[Decimal] = mapped_column(sa.Numeric(14, 3), nullable=False)
+    costo_unitario_estimado: Mapped[Decimal | None] = mapped_column(sa.Numeric(18, 4))
+
+    producto: Mapped[Producto] = relationship(lazy="raise")
