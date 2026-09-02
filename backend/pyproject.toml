@@ -47,8 +47,12 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N"]
+ignore = ["N818"]  # los errores de dominio se nombran en español (constitution.md §1)
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 files = ["app/dominio", "app/servicios"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]
