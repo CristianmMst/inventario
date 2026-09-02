@@ -5,7 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Contexto, SesionDb, paginacion
-from app.esquemas.compras import EstadoOrden, OrdenEdicion, OrdenNueva, OrdenSalida
+from app.esquemas.compras import (
+    CancelacionEntrada,
+    EstadoOrden,
+    OrdenEdicion,
+    OrdenNueva,
+    OrdenSalida,
+)
 from app.infra.paginacion import Pagina, ParametrosPagina
 from app.servicios import compras as servicio
 
@@ -51,3 +57,18 @@ async def editar(
 ) -> OrdenSalida:
     """Edita un borrador; en otro estado responde 409 ORDEN_NO_EDITABLE (RF-COM-003)."""
     return await servicio.editar(sesion, contexto.negocio_id, orden_id, datos)
+
+
+@router.post("/{orden_id}/emitir", response_model=OrdenSalida)
+async def emitir(orden_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) -> OrdenSalida:
+    """Borrador → emitida. Solo desde emitida o parcialmente recibida se recibe (RF-COM-003)."""
+    return await servicio.emitir(sesion, contexto.negocio_id, orden_id)
+
+
+@router.post("/{orden_id}/cancelar", response_model=OrdenSalida)
+async def cancelar(
+    orden_id: uuid.UUID, datos: CancelacionEntrada, sesion: SesionDb, contexto: Contexto
+) -> OrdenSalida:
+    """Cancela una orden sin recepciones indicando el motivo (RF-COM-010). Con recepciones
+    responde 409 y sugiere cerrar con faltante."""
+    return await servicio.cancelar(sesion, contexto.negocio_id, orden_id, datos)

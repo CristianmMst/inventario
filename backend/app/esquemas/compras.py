@@ -108,3 +108,9 @@ class OrdenSalida(BaseModel):
     lineas: list[LineaOrdenSalida]
     total_estimado: DineroSalida | None
     created_at: datetime
+
+
+class CancelacionEntrada(BaseModel):
+    """RF-COM-010: cancelar exige motivo."""
+
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]

@@ -132,3 +132,7 @@ class RepositorioOrdenes:
     async def recibido_por_linea(self, orden_id: uuid.UUID) -> dict[uuid.UUID, Decimal]:
         """Σ recibido por línea desde las recepciones confirmadas. Llega con T-039/T-040."""
         return {}
+
+    async def tiene_recepciones(self, orden_id: uuid.UUID) -> bool:
+        """Recepciones (borrador o confirmadas) contra la orden. Llega con T-039."""
+        return False

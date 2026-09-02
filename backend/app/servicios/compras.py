@@ -1,6 +1,7 @@
 """Órdenes de compra (RF-COM-002, RF-COM-003, RF-COM-010). Planificación opcional (RN-11)."""
 
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from app.dominio.movimientos import validar_cantidad_movimiento
 from app.dominio.tipos import Cantidad, Dinero, Moneda
 from app.esquemas.catalogo import DineroEntrada, DineroSalida
 from app.esquemas.compras import (
+    CancelacionEntrada,
     LineaOrdenEntrada,
     LineaOrdenSalida,
     OrdenEdicion,
@@ -217,3 +219,47 @@ async def listar(
         salidas = [a_salida(o, await repo.recibido_por_linea(o.id)) for o in filas]
     secuencias = {o.id: o.secuencia for o in filas}
     return paginar(salidas, pagina.limit, clave_de=lambda s: {"s": secuencias[s.id]})
+
+
+def _transicion_invalida(orden: OrdenCompra, accion: str) -> err.Conflicto:
+    return err.Conflicto(
+        "TRANSICION_INVALIDA",
+        f"No se puede {accion} la orden {orden.numero}: está {orden.estado.replace('_', ' ')}.",
+        {"orden_id": str(orden.id), "estado": orden.estado, "accion": accion},
+    )
+
+
+async def emitir(sesion: AsyncSession, negocio_id: uuid.UUID, orden_id: uuid.UUID) -> OrdenSalida:
+    """RF-COM-003: borrador → emitida. Desde emitida ya se puede recibir."""
+    async with sesion.begin():
+        orden = await _cargar(sesion, negocio_id, orden_id)
+        if orden.estado != "borrador":
+            raise _transicion_invalida(orden, "emitir")
+        orden.estado = "emitida"
+        orden.emitida_en = datetime.now(UTC)
+        await sesion.flush()
+    async with sesion.begin():
+        return await _salida_de(sesion, negocio_id, orden_id)
+
+
+async def cancelar(
+    sesion: AsyncSession, negocio_id: uuid.UUID, orden_id: uuid.UUID, datos: CancelacionEntrada
+) -> OrdenSalida:
+    """RF-COM-010: una orden sin recepciones se cancela con motivo. Con recepciones no: se
+    cierra con faltante (RF-COM-008)."""
+    async with sesion.begin():
+        orden = await _cargar(sesion, negocio_id, orden_id)
+        if orden.estado not in ("borrador", "emitida"):
+            raise _transicion_invalida(orden, "cancelar")
+        if await RepositorioOrdenes(sesion).tiene_recepciones(orden.id):
+            raise err.Conflicto(
+                "ORDEN_CON_RECEPCIONES",
+                f"La orden {orden.numero} ya tiene recepciones; ciérrala con faltante.",
+                {"orden_id": str(orden.id), "accion_sugerida": "cerrar-con-faltante"},
+            )
+        orden.estado = "cancelada"
+        orden.motivo_cierre = datos.motivo
+        orden.cerrada_en = datetime.now(UTC)
+        await sesion.flush()
+    async with sesion.begin():
+        return await _salida_de(sesion, negocio_id, orden_id)
