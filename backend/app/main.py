@@ -1,5 +1,6 @@
 from fastapi import APIRouter, FastAPI
 
+from app.api.errores import registrar_manejadores
 from app.config import obtener_ajustes
 from app.infra.logging import configurar_logging, middleware_request_id
 
@@ -8,6 +9,7 @@ configurar_logging(json=ajustes.log_json)
 
 app = FastAPI(title="Inventario API", version="1.0.0")
 app.middleware("http")(middleware_request_id)
+registrar_manejadores(app)
 
 api_v1 = APIRouter(prefix="/api/v1")
 
