@@ -325,18 +325,20 @@ async def listar(
     if pagina.cursor:
         c = decodificar_cursor(pagina.cursor)
         despues = (date.fromisoformat(str(c["f"])), uuid.UUID(str(c["id"])))
-    filtros = {
-        "proveedor_id": proveedor_id,
-        "estado_pago": estado_pago,
-        "desde": desde,
-        "hasta": hasta,
-    }
     async with sesion.begin():
         repo = RepositorioFacturas(sesion)
         filas = await repo.listar(
-            negocio_id, limite=pagina.limit + 1, despues_de=despues, **filtros
+            negocio_id,
+            proveedor_id=proveedor_id,
+            estado_pago=estado_pago,
+            desde=desde,
+            hasta=hasta,
+            limite=pagina.limit + 1,
+            despues_de=despues,
         )
-        total, cantidad = await repo.total_filtro(negocio_id, **filtros)
+        total, cantidad = await repo.total_filtro(
+            negocio_id, proveedor_id=proveedor_id, estado_pago=estado_pago, desde=desde, hasta=hasta
+        )
         moneda_base = await _moneda_base(sesion, negocio_id)
         salidas = [a_salida(f, moneda_base) for f in filas]
     fechas = {f.id: f.fecha_emision.isoformat() for f in filas}
