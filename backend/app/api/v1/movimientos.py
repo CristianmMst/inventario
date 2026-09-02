@@ -1,9 +1,12 @@
 import uuid
+from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from starlette.responses import JSONResponse
 
-from app.api.deps import Contexto, SesionDb
+from app.api.deps import Contexto, SesionDb, paginacion
+from app.dominio.movimientos import TipoMovimiento
 from app.esquemas.inventario import (
     AnulacionEntrada,
     MovimientoNuevo,
@@ -11,6 +14,7 @@ from app.esquemas.inventario import (
     StockSalida,
 )
 from app.infra.idempotencia import ClaveIdempotencia, ejecutar_idempotente
+from app.infra.paginacion import Pagina, ParametrosPagina
 from app.repositorios.stock import RepositorioStock
 from app.servicios import movimientos as servicio
 
@@ -72,6 +76,40 @@ async def stock(producto_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) ->
     return StockSalida(
         producto_id=producto_id, cantidad=cantidad.a_api(), actualizado_en=actualizado_en
     )
+
+
+@router.get("", response_model=Pagina[MovimientoSalida])
+async def listar(
+    sesion: SesionDb,
+    contexto: Contexto,
+    pagina: Annotated[ParametrosPagina, Depends(paginacion)],
+    producto_id: Annotated[uuid.UUID | None, Query()] = None,
+    tipo: Annotated[TipoMovimiento | None, Query()] = None,
+    desde: Annotated[datetime | None, Query(description="Inclusive, ISO 8601")] = None,
+    hasta: Annotated[datetime | None, Query(description="Exclusivo, ISO 8601")] = None,
+) -> Pagina[MovimientoSalida]:
+    """Consulta de movimientos con filtros, en orden cronológico inverso (RF-INV-002)."""
+    return await servicio.listar(
+        sesion,
+        contexto.negocio_id,
+        pagina,
+        producto_id=producto_id,
+        tipo=tipo,
+        desde=desde,
+        hasta=hasta,
+    )
+
+
+@router_stock.get("/{producto_id}/movimientos", response_model=Pagina[MovimientoSalida])
+async def historial(
+    producto_id: uuid.UUID,
+    sesion: SesionDb,
+    contexto: Contexto,
+    pagina: Annotated[ParametrosPagina, Depends(paginacion)],
+) -> Pagina[MovimientoSalida]:
+    """Historial del producto, paginado, con el stock resultante tras cada movimiento y la marca
+    de anulado (RF-INV-012, RF-REP-004). Los generados por una recepción traen su línea."""
+    return await servicio.historial_producto(sesion, contexto.negocio_id, producto_id, pagina)
 
 
 @router.get("/{movimiento_id}", response_model=MovimientoSalida)

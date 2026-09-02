@@ -9,6 +9,7 @@ Sigue plan.md §4.4 al pie de la letra, dentro de una sola transacción:
 """
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,7 @@ from app.esquemas.inventario import (
     MovimientoNuevo,
     MovimientoSalida,
 )
+from app.infra.paginacion import Pagina, ParametrosPagina, decodificar_cursor, paginar
 from app.modelos import catalogo as mc
 from app.modelos.inventario import Movimiento
 from app.repositorios.catalogo import RepositorioProductos
@@ -308,3 +310,59 @@ async def contar(
             diferencia=diferencia.a_api(),
             movimiento=a_salida(movimiento) if movimiento is not None else None,
         )
+
+
+def _cursor_a_tupla(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
+    if not cursor:
+        return None
+    c = decodificar_cursor(cursor)
+    return datetime.fromisoformat(str(c["o"])), uuid.UUID(str(c["id"]))
+
+
+def _paginar(filas: list[Movimiento], limite: int) -> Pagina[MovimientoSalida]:
+    momentos = {m.id: m.ocurrido_en.isoformat() for m in filas}
+    return paginar(
+        [a_salida(m) for m in filas],
+        limite,
+        clave_de=lambda s: {"o": momentos[s.id], "id": str(s.id)},
+    )
+
+
+async def historial_producto(
+    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID, pagina: ParametrosPagina
+) -> Pagina[MovimientoSalida]:
+    """RF-INV-012 / RF-REP-004: historial del producto, paginado, con stock resultante y marca
+    de anulado en cada fila. Un archivado conserva su historial (RF-CAT-011)."""
+    async with sesion.begin():
+        await producto_existente(sesion, negocio_id, producto_id)
+        filas = await RepositorioMovimientos(sesion).listar(
+            negocio_id,
+            producto_id=producto_id,
+            limite=pagina.limit + 1,
+            despues_de=_cursor_a_tupla(pagina.cursor),
+        )
+    return _paginar(filas, pagina.limit)
+
+
+async def listar(
+    sesion: AsyncSession,
+    negocio_id: uuid.UUID,
+    pagina: ParametrosPagina,
+    *,
+    producto_id: uuid.UUID | None,
+    tipo: TipoMovimiento | None,
+    desde: datetime | None,
+    hasta: datetime | None,
+) -> Pagina[MovimientoSalida]:
+    """RF-INV-002: consulta de movimientos con filtros por producto, tipo y rango de fechas."""
+    async with sesion.begin():
+        filas = await RepositorioMovimientos(sesion).listar(
+            negocio_id,
+            producto_id=producto_id,
+            tipo=tipo.value if tipo else None,
+            desde=desde,
+            hasta=hasta,
+            limite=pagina.limit + 1,
+            despues_de=_cursor_a_tupla(pagina.cursor),
+        )
+    return _paginar(filas, pagina.limit)
