@@ -1,4 +1,4 @@
-"""Base de pruebas: PostgreSQL real en contenedor (constitution.md §5). Nunca SQLite."""
+"""Base de pruebas: PostgreSQL real en contenedor (constitution.md §5). Nunca una base embebida."""
 
 import asyncio
 import os
@@ -40,3 +40,42 @@ async def motor(postgres_url: str):  # noqa: ANN201
     m = db.motor()
     yield m
     await db.reiniciar_motor()
+
+
+@pytest.fixture
+async def sesion(motor):  # noqa: ANN001, ANN201
+    """Sesión SQLAlchemy directa a la base, para preparar datos o verificar el estado."""
+    from app.infra.db import fabrica_sesiones
+
+    async with fabrica_sesiones()() as s:
+        yield s
+
+
+@pytest.fixture
+async def cliente(motor):  # noqa: ANN001, ANN201
+    """Cliente HTTP contra la app real (ASGI), con la base del contenedor detrás."""
+    import httpx
+
+    from app.main import app
+
+    transporte = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transporte, base_url="http://test") as c:
+        yield c
+
+
+@pytest.fixture(autouse=True)
+async def _limpiar_tablas(request: pytest.FixtureRequest):  # noqa: ANN202
+    """Deja la base vacía tras cada test de integración que la usó. No toca el esquema."""
+    yield
+    if "motor" not in request.fixturenames:
+        return
+    import sqlalchemy as sa
+
+    from app.infra.db import motor as _motor
+    from app.modelos.base import Base
+
+    tablas = [t.name for t in reversed(Base.metadata.sorted_tables)]
+    if not tablas:
+        return
+    async with _motor().begin() as con:
+        await con.execute(sa.text(f"TRUNCATE {', '.join(tablas)} RESTART IDENTITY CASCADE"))
