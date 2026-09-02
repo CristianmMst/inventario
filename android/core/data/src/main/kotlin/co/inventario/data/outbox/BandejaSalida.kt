@@ -6,8 +6,11 @@ import co.inventario.common.error.MapeadorErrores
 import co.inventario.data.red.InventarioApi
 import co.inventario.data.red.Json
 import co.inventario.data.red.dto.AnulacionDto
+import co.inventario.data.red.dto.ConfirmacionRecepcionDto
 import co.inventario.data.red.dto.ConteoSalidaDto
+import co.inventario.data.red.dto.FacturaDto
 import co.inventario.data.red.dto.MovimientoDto
+import co.inventario.data.red.dto.RecepcionDto
 import co.inventario.data.red.llamada
 import java.util.UUID
 
@@ -18,13 +21,14 @@ sealed interface ResultadoEscritura {
     data class Confirmada(override val clave: String, val escritura: Escritura, val respuesta: String) : ResultadoEscritura {
         fun movimiento(): MovimientoDto? = when (escritura) {
             is Escritura.RegistrarMovimiento, is Escritura.Anular -> Json.decodeFromString(MovimientoDto.serializer(), respuesta)
-            is Escritura.Contar -> null
-        }
-
-        fun conteo(): ConteoSalidaDto? = when (escritura) {
-            is Escritura.Contar -> Json.decodeFromString(ConteoSalidaDto.serializer(), respuesta)
             else -> null
         }
+
+        fun conteo(): ConteoSalidaDto? = (escritura as? Escritura.Contar)?.let { Json.decodeFromString(ConteoSalidaDto.serializer(), respuesta) }
+
+        fun recepcion(): RecepcionDto? = (escritura as? Escritura.ConfirmarRecepcion)?.let { Json.decodeFromString(RecepcionDto.serializer(), respuesta) }
+
+        fun factura(): FacturaDto? = (escritura as? Escritura.RegistrarFactura)?.let { Json.decodeFromString(FacturaDto.serializer(), respuesta) }
     }
 
     /** No llegó confirmación: la operación sigue guardada y se reintentará con la misma clave. */
@@ -94,6 +98,12 @@ class BandejaSalida(
                 }
             is Escritura.Contar ->
                 llamada({ api.conteo(operacion.clave, escritura.productoId, escritura.datos) }) { Json.encodeToString(ConteoSalidaDto.serializer(), it) }
+            is Escritura.ConfirmarRecepcion ->
+                llamada({ api.confirmarRecepcion(operacion.clave, escritura.recepcionId, ConfirmacionRecepcionDto(escritura.confirmarExceso)) }) {
+                    Json.encodeToString(RecepcionDto.serializer(), it)
+                }
+            is Escritura.RegistrarFactura ->
+                llamada({ api.crearFactura(operacion.clave, escritura.datos) }) { Json.encodeToString(FacturaDto.serializer(), it) }
         }
 
     /** Sin red, tiempo agotado, 5xx o "todavía en curso": el servidor puede no haber terminado; se reintenta. */

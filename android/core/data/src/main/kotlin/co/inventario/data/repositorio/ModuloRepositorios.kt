@@ -16,4 +16,16 @@ abstract class ModuloRepositorios {
 
     @Binds
     abstract fun movimientos(impl: RepositorioMovimientosApi): RepositorioMovimientos
+
+    @Binds
+    abstract fun compras(impl: RepositorioComprasApi): RepositorioCompras
+
+    @Binds
+    abstract fun facturas(impl: RepositorioFacturasApi): RepositorioFacturas
+
+    @Binds
+    abstract fun reportes(impl: RepositorioReportesApi): RepositorioReportes
+
+    @Binds
+    abstract fun ajustes(impl: RepositorioAjustesApi): RepositorioAjustes
 }

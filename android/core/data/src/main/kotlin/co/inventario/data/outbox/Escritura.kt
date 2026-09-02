@@ -1,6 +1,7 @@
 package co.inventario.data.outbox
 
 import co.inventario.data.red.dto.ConteoEntradaDto
+import co.inventario.data.red.dto.FacturaNuevaDto
 import co.inventario.data.red.dto.MovimientoNuevoDto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -26,4 +27,14 @@ sealed interface Escritura {
     @Serializable
     @SerialName("contar")
     data class Contar(@SerialName("producto_id") val productoId: String, val datos: ConteoEntradaDto) : Escritura
+
+    /** RF-COM-006: confirmar una recepción genera todas sus entradas o ninguna. */
+    @Serializable
+    @SerialName("confirmar_recepcion")
+    data class ConfirmarRecepcion(@SerialName("recepcion_id") val recepcionId: String, @SerialName("confirmar_exceso") val confirmarExceso: Boolean) : Escritura
+
+    /** RF-FAC-001: registrar una factura de compra. */
+    @Serializable
+    @SerialName("registrar_factura")
+    data class RegistrarFactura(val datos: FacturaNuevaDto) : Escritura
 }
