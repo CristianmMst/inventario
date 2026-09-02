@@ -7,7 +7,9 @@ from decimal import Decimal
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import ContextoNegocio
 from app.dominio import errores as err
+from app.dominio import eventos as ev
 from app.dominio.imagenes import TipoImagen
 from app.dominio.tipos import Dinero, Moneda
 from app.esquemas.catalogo import DineroEntrada, DineroSalida
@@ -27,6 +29,7 @@ from app.modelos.facturas import Factura, FacturaImagen, FacturaRecepcion
 from app.repositorios.compras import RepositorioRecepciones
 from app.repositorios.facturas import RepositorioFacturas
 from app.repositorios.identidad import RepositorioIdentidad
+from app.servicios.eventos import emitir
 from app.servicios.imagenes import a_salida as imagen_salida
 from app.servicios.imagenes import borrar as borrar_imagen
 from app.servicios.imagenes import guardar_nueva as guardar_imagen
@@ -177,7 +180,10 @@ async def _vincular(
     factura.recepciones = vinculos
 
 
-async def crear(sesion: AsyncSession, negocio_id: uuid.UUID, datos: FacturaNueva) -> FacturaSalida:
+async def crear(
+    sesion: AsyncSession, contexto: ContextoNegocio, datos: FacturaNueva
+) -> FacturaSalida:
+    negocio_id = contexto.negocio_id
     repo = RepositorioFacturas(sesion)
     async with sesion.begin():
         proveedor = await proveedor_seleccionable(sesion, negocio_id, datos.proveedor_id)
@@ -220,6 +226,24 @@ async def crear(sesion: AsyncSession, negocio_id: uuid.UUID, datos: FacturaNueva
         if datos.recepciones:
             await _vincular(sesion, negocio_id, factura, datos.recepciones)
             await sesion.flush()
+        await emitir(
+            sesion,
+            contexto,
+            ev.factura_registrada,
+            factura_id=factura.id,
+            proveedor_id=factura.proveedor_id,
+            numero=factura.numero,
+            fecha_emision=factura.fecha_emision,
+            fecha_vencimiento=factura.fecha_vencimiento,
+            moneda=factura.moneda,
+            base_gravable=Dinero(factura.base_gravable, Moneda(moneda)),
+            impuesto=Dinero(factura.impuesto, Moneda(moneda)),
+            total=Dinero(factura.total, Moneda(moneda)),
+            total_moneda_base=Dinero(factura.total_base, Moneda(moneda_base)),
+            estado_pago=factura.estado_pago,
+            recepciones=list(datos.recepciones),
+            imagenes=[],
+        )
         factura_id = factura.id
     async with sesion.begin():
         return await _salida_de(sesion, negocio_id, factura_id)
@@ -261,9 +285,10 @@ async def editar(
 
 
 async def pagar(
-    sesion: AsyncSession, negocio_id: uuid.UUID, factura_id: uuid.UUID, datos: PagoEntrada
+    sesion: AsyncSession, contexto: ContextoNegocio, factura_id: uuid.UUID, datos: PagoEntrada
 ) -> FacturaSalida:
     """RF-FAC-004: pendiente → pagada, con fecha de pago obligatoria."""
+    negocio_id = contexto.negocio_id
     async with sesion.begin():
         factura = await _cargar(sesion, negocio_id, factura_id)
         if factura.estado_pago == "pagada":
@@ -281,6 +306,16 @@ async def pagar(
         factura.estado_pago = "pagada"
         factura.fecha_pago = datos.fecha_pago
         await sesion.flush()
+        await emitir(
+            sesion,
+            contexto,
+            ev.factura_pagada,
+            factura_id=factura.id,
+            proveedor_id=factura.proveedor_id,
+            numero=factura.numero,
+            total=Dinero(factura.total, Moneda(factura.moneda)),
+            fecha_pago=factura.fecha_pago,
+        )
     async with sesion.begin():
         return await _salida_de(sesion, negocio_id, factura_id)
 

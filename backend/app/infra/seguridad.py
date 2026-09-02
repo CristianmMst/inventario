@@ -12,7 +12,16 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 from app.config import obtener_ajustes
 
-_hasher = PasswordHasher()  # parámetros por defecto de argon2-cffi (RNF-11)
+
+def _crear_hasher() -> PasswordHasher:
+    """Parámetros por defecto de argon2-cffi (RNF-11). Solo en el entorno de pruebas se
+    rebajan, para que la suite completa quepa en cinco minutos (constitution.md §5)."""
+    if obtener_ajustes().entorno == "pruebas":
+        return PasswordHasher(time_cost=1, memory_cost=8 * 1024, parallelism=1)
+    return PasswordHasher()
+
+
+_hasher = _crear_hasher()
 
 ALGORITMO_JWT = "HS256"
 
@@ -48,7 +57,9 @@ def hash_token_opaco(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def crear_token_acceso(usuario_id: uuid.UUID, negocio_id: uuid.UUID) -> tuple[str, int]:
+def crear_token_acceso(
+    usuario_id: uuid.UUID, negocio_id: uuid.UUID, nombre: str = ""
+) -> tuple[str, int]:
     """Devuelve el JWT y los segundos hasta su caducidad."""
     ajustes = obtener_ajustes()
     ahora = datetime.now(UTC)
@@ -57,6 +68,7 @@ def crear_token_acceso(usuario_id: uuid.UUID, negocio_id: uuid.UUID) -> tuple[st
         "sub": str(usuario_id),
         "biz": str(negocio_id),
         "typ": "acceso",
+        "nombre": nombre,
         "jti": uuid.uuid4().hex,
         "iat": int(ahora.timestamp()),
         "exp": int((ahora + duracion).timestamp()),

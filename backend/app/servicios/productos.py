@@ -7,7 +7,9 @@ from decimal import Decimal
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import ContextoNegocio
 from app.dominio import errores as err
+from app.dominio import eventos as ev
 from app.dominio.tipos import Cantidad, Dinero, Moneda, TipoUnidad, UnidadMedida
 from app.esquemas.catalogo import (
     CategoriaSalida,
@@ -29,6 +31,7 @@ from app.repositorios.catalogo import (
 )
 from app.repositorios.identidad import RepositorioIdentidad
 from app.repositorios.stock import RepositorioStock
+from app.servicios.eventos import emitir
 from app.servicios.imagenes import a_salida as imagen_salida
 
 
@@ -174,8 +177,9 @@ def _sku_duplicado(sku: str) -> err.Conflicto:
 
 
 async def crear(
-    sesion: AsyncSession, negocio_id: uuid.UUID, datos: ProductoNuevo
+    sesion: AsyncSession, contexto: ContextoNegocio, datos: ProductoNuevo
 ) -> ProductoSalida:
+    negocio_id = contexto.negocio_id
     ctx = _Contexto(sesion, negocio_id)
     try:
         async with sesion.begin():
@@ -200,6 +204,27 @@ async def crear(
                 RepositorioCodigosBarras(sesion).guardar(
                     m.CodigoBarras(negocio_id=negocio_id, producto_id=producto.id, codigo=codigo)
                 )
+            categoria = (
+                await RepositorioCategorias(sesion).por_id(negocio_id, datos.categoria_id)
+                if datos.categoria_id
+                else None
+            )
+            await emitir(
+                sesion,
+                contexto,
+                ev.producto_creado,
+                producto_id=producto.id,
+                nombre=producto.nombre,
+                sku=producto.sku,
+                categoria=categoria.nombre if categoria else None,
+                unidad=unidad.codigo,
+                codigos_barras=codigos,
+                costo_actual=_dinero_o_none(producto.costo_actual, moneda_base),
+                precio_venta=_dinero_o_none(producto.precio_venta, moneda_base),
+                stock_minimo=(
+                    Cantidad(producto.stock_minimo) if producto.stock_minimo is not None else None
+                ),
+            )
             producto_id = producto.id
     except IntegrityError as e:
         raise _sku_duplicado(datos.sku or "") from e
@@ -217,8 +242,12 @@ async def obtener(
 
 
 async def editar(
-    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID, datos: ProductoEdicion
+    sesion: AsyncSession,
+    contexto: ContextoNegocio,
+    producto_id: uuid.UUID,
+    datos: ProductoEdicion,
 ) -> ProductoSalida:
+    negocio_id = contexto.negocio_id
     """RF-CAT-010: los cambios de costo y precio sobrescriben el valor actual (RN-09)."""
     ctx = _Contexto(sesion, negocio_id)
     enviados = datos.model_fields_set
@@ -228,6 +257,7 @@ async def editar(
             if producto is None:
                 raise no_encontrado()
             moneda_base = await ctx.moneda_base()
+            antes = _instantanea(producto, moneda_base)
             if "nombre" in enviados and datos.nombre is not None:
                 producto.nombre = datos.nombre
             if "sku" in enviados and datos.sku is not None:
@@ -244,9 +274,41 @@ async def editar(
             if "stock_minimo" in enviados:
                 unidad = await ctx.unidad(producto.unidad_codigo)
                 producto.stock_minimo = _stock_minimo(datos.stock_minimo, _unidad_dominio(unidad))
+            await sesion.flush()
+            despues = _instantanea(producto, moneda_base)
+            cambios = {
+                campo: {"antes": antes[campo], "despues": despues[campo]}
+                for campo in antes
+                if antes[campo] != despues[campo]
+            }
+            if cambios:
+                await emitir(
+                    sesion,
+                    contexto,
+                    ev.producto_actualizado,
+                    producto_id=producto.id,
+                    campos_cambiados=cambios,
+                )
     except IntegrityError as e:
         raise _sku_duplicado(datos.sku or "") from e
     return await obtener(sesion, negocio_id, producto_id)
+
+
+def _dinero_o_none(monto: Decimal | None, moneda: str) -> Dinero | None:
+    return Dinero(monto, Moneda(moneda)) if monto is not None else None
+
+
+def _instantanea(p: m.Producto, moneda_base: str) -> dict[str, object]:
+    """Los campos de negocio del producto, en tipos del dominio, para el diff del evento."""
+    return {
+        "nombre": p.nombre,
+        "sku": p.sku,
+        "categoria_id": p.categoria_id,
+        "unidad": p.unidad_codigo,
+        "costo_actual": _dinero_o_none(p.costo_actual, moneda_base),
+        "precio_venta": _dinero_o_none(p.precio_venta, moneda_base),
+        "stock_minimo": Cantidad(p.stock_minimo) if p.stock_minimo is not None else None,
+    }
 
 
 async def agregar_codigo(
@@ -366,10 +428,26 @@ async def _cambiar_estado(
 
 
 async def archivar(
-    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID
+    sesion: AsyncSession, contexto: ContextoNegocio, producto_id: uuid.UUID
 ) -> ProductoSalida:
     """RF-CAT-011 / RN-17: sustituye al borrado. Conserva historial; sale de la operación."""
-    return await _cambiar_estado(sesion, negocio_id, producto_id, "archivado")
+    negocio_id = contexto.negocio_id
+    async with sesion.begin():
+        producto = await RepositorioProductos(sesion).por_id(negocio_id, producto_id)
+        if producto is None:
+            raise no_encontrado()
+        if producto.estado != "archivado":
+            producto.estado = "archivado"
+            stock = await RepositorioStock(sesion).actual(negocio_id, producto.id)
+            await emitir(
+                sesion,
+                contexto,
+                ev.producto_archivado,
+                producto_id=producto.id,
+                nombre=producto.nombre,
+                stock_al_archivar=stock,
+            )
+    return await obtener(sesion, negocio_id, producto_id)
 
 
 async def desarchivar(

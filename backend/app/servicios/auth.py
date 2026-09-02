@@ -44,7 +44,7 @@ def _emitir_refresh(
 
 
 def _sesion_de(usuario: Usuario, negocio: Negocio, token_renovacion: str) -> Sesion:
-    token, segundos = seguridad.crear_token_acceso(usuario.id, negocio.id)
+    token, segundos = seguridad.crear_token_acceso(usuario.id, negocio.id, usuario.nombre)
     return Sesion(
         token_acceso=token,
         expira_en_segundos=segundos,

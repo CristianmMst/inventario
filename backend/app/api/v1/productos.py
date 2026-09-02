@@ -14,7 +14,7 @@ router = APIRouter(prefix="/productos", tags=["catalogo"])
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ProductoSalida)
 async def crear(datos: ProductoNuevo, sesion: SesionDb, contexto: Contexto) -> ProductoSalida:
     """Alta de producto. Nombre y unidad obligatorios; el SKU se genera si falta (RF-CAT-001)."""
-    return await servicio.crear(sesion, contexto.negocio_id, datos)
+    return await servicio.crear(sesion, contexto, datos)
 
 
 @router.get("", response_model=Pagina[ProductoSalida])
@@ -87,14 +87,14 @@ async def editar(
     producto_id: uuid.UUID, datos: ProductoEdicion, sesion: SesionDb, contexto: Contexto
 ) -> ProductoSalida:
     """Edición parcial. Costo y precio sobrescriben el valor vigente (RF-CAT-010)."""
-    return await servicio.editar(sesion, contexto.negocio_id, producto_id, datos)
+    return await servicio.editar(sesion, contexto, producto_id, datos)
 
 
 @router.post("/{producto_id}/archivar", response_model=ProductoSalida)
 async def archivar(producto_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) -> ProductoSalida:
     """Archiva el producto: sale de las búsquedas de operación y no admite movimientos, pero
     conserva su historial (RF-CAT-011, RN-17). Sustituye al borrado, que no existe."""
-    return await servicio.archivar(sesion, contexto.negocio_id, producto_id)
+    return await servicio.archivar(sesion, contexto, producto_id)
 
 
 @router.post("/{producto_id}/desarchivar", response_model=ProductoSalida)

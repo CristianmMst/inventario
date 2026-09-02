@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ContextoNegocio
 from app.dominio import errores as err
+from app.dominio import eventos as ev
 from app.dominio.movimientos import (
     Direccion,
     TipoMovimiento,
@@ -40,6 +41,7 @@ from app.modelos.inventario import Movimiento
 from app.repositorios.catalogo import RepositorioProductos
 from app.repositorios.movimientos import RepositorioMovimientos
 from app.repositorios.stock import RepositorioStock
+from app.servicios.eventos import emitir
 from app.servicios.motivos import validar_motivo
 
 MOTIVOS_DEL_SISTEMA = frozenset({"recepcion_compra"})
@@ -123,6 +125,7 @@ async def aplicar_movimiento(
     una transacción abierta: bloquea, valida el negativo, inserta y actualiza la instantánea."""
     stock = RepositorioStock(sesion)
     actual = await stock.bloquear(contexto.negocio_id, producto.id)
+    bajo_antes = await stock.bajo_minimo_anterior(contexto.negocio_id, producto.id)
     nuevo = stock_resultante(actual, tipo, cantidad, direccion=direccion)
     # RN-03: salida y merma no dejan el stock bajo cero... salvo override explícito (RN-04).
     # Solo queda marcado como forzado el movimiento que de verdad saltó el bloqueo.
@@ -161,11 +164,92 @@ async def aplicar_movimiento(
     )
     RepositorioMovimientos(sesion).guardar(movimiento)
     await sesion.flush()
-    await stock.actualizar(
+    bajo_ahora = await stock.actualizar(
         contexto.negocio_id, producto.id, nuevo, stock_minimo=producto.stock_minimo
     )
     await sesion.refresh(movimiento)
+    # RN-21: los eventos van en esta misma transacción, después del hecho.
+    await emitir(
+        sesion,
+        contexto,
+        ev.movimiento_registrado,
+        movimiento_id=movimiento.id,
+        producto_id=producto.id,
+        tipo=tipo.value,
+        cantidad=cantidad,
+        motivo=motivo,
+        nota=nota,
+        forzado=salta_bloqueo,
+        stock_resultante=nuevo,
+        origen=origen,
+        recepcion_id=recepcion_id,
+    )
+    if salta_bloqueo:
+        await emitir(
+            sesion,
+            contexto,
+            ev.inventario_discrepancia,
+            movimiento_id=movimiento.id,
+            producto_id=producto.id,
+            cantidad_solicitada=cantidad,
+            stock_disponible=actual,
+            stock_resultante=nuevo,
+            motivo=motivo,
+            nota=nota,
+        )
+    await _emitir_transiciones_de_stock(
+        sesion, contexto, producto, actual, nuevo, bajo_antes=bajo_antes, bajo_ahora=bajo_ahora
+    )
     return movimiento
+
+
+async def _emitir_transiciones_de_stock(
+    sesion: AsyncSession,
+    contexto: ContextoNegocio,
+    producto: mc.Producto,
+    antes: Cantidad,
+    ahora: Cantidad,
+    *,
+    bajo_antes: bool,
+    bajo_ahora: bool,
+) -> None:
+    """RN-22: bajo_minimo solo al cruzar hacia abajo; repuesto al volver por encima; agotado al
+    llegar a cero o menos desde un stock positivo."""
+    if ahora.valor <= 0 < antes.valor:
+        await emitir(
+            sesion,
+            contexto,
+            ev.stock_agotado,
+            producto_id=producto.id,
+            nombre=producto.nombre,
+            stock_actual=ahora,
+            unidad=producto.unidad_codigo,
+        )
+    if producto.stock_minimo is None:
+        return
+    minimo = Cantidad(producto.stock_minimo)
+    if bajo_ahora and not bajo_antes:
+        await emitir(
+            sesion,
+            contexto,
+            ev.stock_bajo_minimo,
+            producto_id=producto.id,
+            nombre=producto.nombre,
+            stock_actual=ahora,
+            stock_minimo=minimo,
+            deficit=minimo - ahora,
+            unidad=producto.unidad_codigo,
+            proveedor_habitual_id=None,
+        )
+    elif bajo_antes and not bajo_ahora:
+        await emitir(
+            sesion,
+            contexto,
+            ev.stock_repuesto,
+            producto_id=producto.id,
+            stock_actual=ahora,
+            stock_minimo=minimo,
+        )
 
 
 async def registrar(
@@ -280,6 +364,17 @@ async def anular(
                 "Ese movimiento ya fue anulado.",
                 {"movimiento_id": str(original.id)},
             )
+        await emitir(
+            sesion,
+            contexto,
+            ev.movimiento_anulado,
+            movimiento_id_original=original.id,
+            contramovimiento_id=contra.id,
+            producto_id=producto.id,
+            cantidad=Cantidad(original.cantidad),
+            motivo_anulacion=datos.nota,
+            stock_resultante=Cantidad(contra.stock_resultante),
+        )
         if original.recepcion_id is not None:
             # RF-COM-012: la recepción confirmada no se edita; anular sus movimientos la
             # marca corregida sin borrarla.

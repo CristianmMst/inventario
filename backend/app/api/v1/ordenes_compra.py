@@ -63,7 +63,7 @@ async def editar(
 @router.post("/{orden_id}/emitir", response_model=OrdenSalida)
 async def emitir(orden_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) -> OrdenSalida:
     """Borrador → emitida. Solo desde emitida o parcialmente recibida se recibe (RF-COM-003)."""
-    return await servicio.emitir(sesion, contexto.negocio_id, orden_id)
+    return await servicio.emitir(sesion, contexto, orden_id)
 
 
 @router.post("/{orden_id}/cancelar", response_model=OrdenSalida)
@@ -81,4 +81,4 @@ async def cerrar_con_faltante(
 ) -> OrdenSalida:
     """Cierra una orden parcialmente recibida indicando el motivo del faltante; ya no admite
     recepciones (RF-COM-008)."""
-    return await servicio.cerrar_con_faltante(sesion, contexto.negocio_id, orden_id, datos)
+    return await servicio.cerrar_con_faltante(sesion, contexto, orden_id, datos)

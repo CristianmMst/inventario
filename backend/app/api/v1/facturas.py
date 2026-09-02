@@ -70,7 +70,7 @@ async def crear(
     """Registra una factura de compra (RF-FAC-001). Exige Idempotency-Key."""
 
     async def operacion() -> FacturaSalida:
-        return await servicio.crear(sesion, contexto.negocio_id, datos)
+        return await servicio.crear(sesion, contexto, datos)
 
     return await ejecutar_idempotente(
         sesion, contexto, clave, request, status.HTTP_201_CREATED, operacion
@@ -122,7 +122,7 @@ async def pagar(
     factura_id: uuid.UUID, datos: PagoEntrada, sesion: SesionDb, contexto: Contexto
 ) -> FacturaSalida:
     """Marca la factura como pagada con fecha de pago (RF-FAC-004)."""
-    return await servicio.pagar(sesion, contexto.negocio_id, factura_id, datos)
+    return await servicio.pagar(sesion, contexto, factura_id, datos)
 
 
 @router.post("/{factura_id}/anular", response_model=FacturaSalida)

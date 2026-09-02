@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ContextoNegocio
 from app.dominio import errores as err
+from app.dominio import eventos as ev
 from app.dominio.movimientos import TipoMovimiento, validar_cantidad_movimiento
 from app.dominio.tipos import Cantidad, Dinero, Moneda
 from app.esquemas.catalogo import DineroEntrada, DineroSalida
@@ -30,6 +31,7 @@ from app.infra.paginacion import Pagina, ParametrosPagina, decodificar_cursor, p
 from app.modelos.compras import OrdenCompra, Recepcion, RecepcionLinea
 from app.repositorios.compras import RepositorioOrdenes, RepositorioRecepciones
 from app.repositorios.identidad import RepositorioIdentidad
+from app.servicios.eventos import emitir
 from app.servicios.movimientos import aplicar_movimiento, producto_operable, unidad_de
 from app.servicios.proveedores import proveedor_seleccionable
 
@@ -332,8 +334,59 @@ async def confirmar(
         recepcion.estado = "confirmada"
         recepcion.confirmada_en = datetime.now(UTC)
         await sesion.flush()
+        movimientos = await RepositorioRecepciones(sesion).movimientos_de(recepcion.id)
+        total_base = sum(
+            (
+                (linea.costo_unitario_base or Decimal(0)) * linea.cantidad_recibida
+                for linea in recepcion.lineas
+            ),
+            Decimal(0),
+        )
+        await emitir(
+            sesion,
+            contexto,
+            ev.compra_recibida,
+            recepcion_id=recepcion.id,
+            orden_id=recepcion.orden_id,
+            proveedor_id=recepcion.proveedor_id,
+            fecha=recepcion.fecha,
+            moneda=recepcion.moneda,
+            tasa_cambio=str(tasa.quantize(Decimal("0.00000001"))),
+            total_moneda_base=Dinero(total_base.quantize(Decimal("0.0001")), Moneda(moneda_base)),
+            lineas=[
+                {
+                    "producto_id": linea.producto_id,
+                    "cantidad": Cantidad(linea.cantidad_recibida),
+                    "costo_unitario": Dinero(linea.costo_unitario, Moneda(linea.moneda_costo)),
+                    "costo_unitario_base": Dinero(
+                        linea.costo_unitario_base or Decimal(0), Moneda(moneda_base)
+                    ),
+                }
+                for linea in recepcion.lineas
+            ],
+            movimientos_generados=movimientos,
+        )
         if orden is not None:
             await _actualizar_estado_orden(sesion, orden)
+            if orden.estado == "parcialmente_recibida":
+                recibido = await RepositorioOrdenes(sesion).recibido_por_linea(orden.id)
+                await emitir(
+                    sesion,
+                    contexto,
+                    ev.compra_recibida_parcial,
+                    orden_id=orden.id,
+                    recepcion_id=recepcion.id,
+                    lineas_pendientes=[
+                        {
+                            "producto_id": linea.producto_id,
+                            "cantidad_pendiente": Cantidad(
+                                linea.cantidad_ordenada - recibido.get(linea.id, Decimal(0))
+                            ),
+                        }
+                        for linea in orden.lineas
+                        if linea.cantidad_ordenada - recibido.get(linea.id, Decimal(0)) > 0
+                    ],
+                )
     async with sesion.begin():
         return await _salida_de(sesion, negocio_id, recepcion_id)
 

@@ -6,7 +6,9 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import ContextoNegocio
 from app.dominio import errores as err
+from app.dominio import eventos as ev
 from app.dominio.movimientos import validar_cantidad_movimiento
 from app.dominio.tipos import Cantidad, Dinero, Moneda
 from app.esquemas.catalogo import DineroEntrada, DineroSalida
@@ -25,6 +27,7 @@ from app.infra.paginacion import Pagina, ParametrosPagina, decodificar_cursor, p
 from app.modelos.compras import OrdenCompra, OrdenCompraLinea
 from app.repositorios.compras import RepositorioOrdenes
 from app.repositorios.identidad import RepositorioIdentidad
+from app.servicios.eventos import emitir as emitir_evento
 from app.servicios.movimientos import producto_operable, unidad_de
 from app.servicios.proveedores import proveedor_seleccionable
 
@@ -230,8 +233,11 @@ def _transicion_invalida(orden: OrdenCompra, accion: str) -> err.Conflicto:
     )
 
 
-async def emitir(sesion: AsyncSession, negocio_id: uuid.UUID, orden_id: uuid.UUID) -> OrdenSalida:
+async def emitir(
+    sesion: AsyncSession, contexto: ContextoNegocio, orden_id: uuid.UUID
+) -> OrdenSalida:
     """RF-COM-003: borrador → emitida. Desde emitida ya se puede recibir."""
+    negocio_id = contexto.negocio_id
     async with sesion.begin():
         orden = await _cargar(sesion, negocio_id, orden_id)
         if orden.estado != "borrador":
@@ -239,6 +245,36 @@ async def emitir(sesion: AsyncSession, negocio_id: uuid.UUID, orden_id: uuid.UUI
         orden.estado = "emitida"
         orden.emitida_en = datetime.now(UTC)
         await sesion.flush()
+        total = sum(
+            (
+                linea.costo_unitario_estimado * linea.cantidad_ordenada
+                for linea in orden.lineas
+                if linea.costo_unitario_estimado is not None
+            ),
+            Decimal(0),
+        )
+        await emitir_evento(
+            sesion,
+            contexto,
+            ev.compra_ordenada,
+            orden_id=orden.id,
+            proveedor_id=orden.proveedor_id,
+            fecha_esperada=orden.fecha_esperada,
+            moneda=orden.moneda,
+            total_estimado=Dinero(total.quantize(Decimal("0.0001")), Moneda(orden.moneda)),
+            lineas=[
+                {
+                    "producto_id": linea.producto_id,
+                    "cantidad": Cantidad(linea.cantidad_ordenada),
+                    "costo_unitario_estimado": (
+                        Dinero(linea.costo_unitario_estimado, Moneda(orden.moneda))
+                        if linea.costo_unitario_estimado is not None
+                        else None
+                    ),
+                }
+                for linea in orden.lineas
+            ],
+        )
     async with sesion.begin():
         return await _salida_de(sesion, negocio_id, orden_id)
 
@@ -267,8 +303,12 @@ async def cancelar(
 
 
 async def cerrar_con_faltante(
-    sesion: AsyncSession, negocio_id: uuid.UUID, orden_id: uuid.UUID, datos: CierreFaltanteEntrada
+    sesion: AsyncSession,
+    contexto: ContextoNegocio,
+    orden_id: uuid.UUID,
+    datos: CierreFaltanteEntrada,
 ) -> OrdenSalida:
+    negocio_id = contexto.negocio_id
     """RF-COM-008 / RN-12: una orden parcialmente recibida se cierra con faltante indicando el
     motivo, y desde entonces no admite más recepciones."""
     async with sesion.begin():
@@ -279,5 +319,23 @@ async def cerrar_con_faltante(
         orden.motivo_cierre = datos.motivo
         orden.cerrada_en = datetime.now(UTC)
         await sesion.flush()
+        recibido = await RepositorioOrdenes(sesion).recibido_por_linea(orden.id)
+        await emitir_evento(
+            sesion,
+            contexto,
+            ev.compra_cerrada_con_faltante,
+            orden_id=orden.id,
+            motivo=datos.motivo,
+            lineas_faltantes=[
+                {
+                    "producto_id": linea.producto_id,
+                    "cantidad_pendiente": Cantidad(
+                        linea.cantidad_ordenada - recibido.get(linea.id, Decimal(0))
+                    ),
+                }
+                for linea in orden.lineas
+                if linea.cantidad_ordenada - recibido.get(linea.id, Decimal(0)) > 0
+            ],
+        )
     async with sesion.begin():
         return await _salida_de(sesion, negocio_id, orden_id)

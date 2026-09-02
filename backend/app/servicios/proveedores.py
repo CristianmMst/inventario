@@ -4,11 +4,14 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import ContextoNegocio
 from app.dominio import errores as err
+from app.dominio import eventos as ev
 from app.esquemas.compras import ProveedorEdicion, ProveedorNuevo, ProveedorSalida
 from app.infra.paginacion import Pagina, ParametrosPagina, decodificar_cursor, paginar
 from app.modelos.compras import Proveedor
 from app.repositorios.compras import RepositorioProveedores
+from app.servicios.eventos import emitir
 
 
 def _salida(p: Proveedor) -> ProveedorSalida:
@@ -53,13 +56,22 @@ async def proveedor_seleccionable(
 
 
 async def crear(
-    sesion: AsyncSession, negocio_id: uuid.UUID, datos: ProveedorNuevo
+    sesion: AsyncSession, contexto: ContextoNegocio, datos: ProveedorNuevo
 ) -> ProveedorSalida:
-    proveedor = Proveedor(negocio_id=negocio_id, **datos.model_dump())
+    proveedor = Proveedor(negocio_id=contexto.negocio_id, **datos.model_dump())
     async with sesion.begin():
         RepositorioProveedores(sesion).guardar(proveedor)
         await sesion.flush()
         await sesion.refresh(proveedor)
+        await emitir(
+            sesion,
+            contexto,
+            ev.proveedor_creado,
+            proveedor_id=proveedor.id,
+            nombre=proveedor.nombre,
+            identificacion_fiscal=proveedor.identificacion_fiscal,
+            contacto=proveedor.contacto,
+        )
     return _salida(proveedor)
 
 

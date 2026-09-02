@@ -30,6 +30,7 @@ def paginacion(
 class Autor:
     tipo: Literal["usuario", "servicio"]
     id: uuid.UUID
+    nombre: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +58,11 @@ def _contexto_desde_jwt(authorization: str) -> ContextoNegocio:
         raise _invalida() from e
     return ContextoNegocio(
         negocio_id=uuid.UUID(carga["biz"]),
-        autor=Autor(tipo="usuario", id=uuid.UUID(carga["sub"])),
+        autor=Autor(
+            tipo="usuario",
+            id=uuid.UUID(carga["sub"]),
+            nombre=str(carga.get("nombre", "")),
+        ),
     )
 
 
@@ -77,7 +82,9 @@ async def _contexto_desde_api_key(sesion: AsyncSession, clave: str) -> ContextoN
         ):
             raise _invalida()
         await repo.marcar_uso(fila.id)
-        return ContextoNegocio(negocio_id=fila.negocio_id, autor=Autor(tipo="servicio", id=fila.id))
+        return ContextoNegocio(
+            negocio_id=fila.negocio_id, autor=Autor(tipo="servicio", id=fila.id, nombre=fila.nombre)
+        )
 
 
 async def contexto_actual(

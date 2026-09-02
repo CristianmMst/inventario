@@ -23,6 +23,7 @@ def postgres_url() -> Iterator[str]:
             f"@{host}:{puerto}/{contenedor.dbname}"
         )
         os.environ["DATABASE_URL"] = url
+        os.environ["ENTORNO"] = "pruebas"
         os.environ["IMAGENES_DIR"] = tempfile.mkdtemp(prefix="imagenes-prueba-")
         yield url
 

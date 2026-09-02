@@ -24,7 +24,7 @@ async def listar(
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ProveedorSalida)
 async def crear(datos: ProveedorNuevo, sesion: SesionDb, contexto: Contexto) -> ProveedorSalida:
     """Alta de proveedor; solo el nombre es obligatorio (RF-COM-001)."""
-    return await servicio.crear(sesion, contexto.negocio_id, datos)
+    return await servicio.crear(sesion, contexto, datos)
 
 
 @router.get("/{proveedor_id}", response_model=ProveedorSalida)
