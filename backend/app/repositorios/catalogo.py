@@ -2,8 +2,9 @@ import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.modelos.catalogo import Categoria, UnidadMedida
+from app.modelos.catalogo import Categoria, Producto, UnidadMedida
 
 
 class RepositorioUnidades:
@@ -53,3 +54,30 @@ class RepositorioCategorias:
                 sa.tuple_(Categoria.nombre, Categoria.id) > sa.tuple_(nombre, cid)
             )
         return list((await self._s.execute(consulta)).scalars())
+
+
+class RepositorioProductos:
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._s = sesion
+
+    def guardar(self, producto: Producto) -> None:
+        self._s.add(producto)
+
+    async def por_id(self, negocio_id: uuid.UUID, producto_id: uuid.UUID) -> Producto | None:
+        return (
+            await self._s.execute(
+                sa.select(Producto)
+                .where(Producto.negocio_id == negocio_id, Producto.id == producto_id)
+                .options(selectinload(Producto.categoria), selectinload(Producto.unidad))
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one_or_none()
+
+    async def existe_sku(self, negocio_id: uuid.UUID, sku: str) -> bool:
+        return (
+            await self._s.execute(
+                sa.select(sa.literal(True)).where(
+                    Producto.negocio_id == negocio_id, Producto.sku == sku
+                )
+            )
+        ).scalar_one_or_none() is True

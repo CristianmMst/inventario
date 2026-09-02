@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import CITEXT, TSVECTOR
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modelos.base import Base, ConId, ConMarcasDeTiempo
 
@@ -84,3 +84,6 @@ class Producto(ConId, ConMarcasDeTiempo, Base):
     imagen_id: Mapped[uuid.UUID | None] = mapped_column(sa.Uuid)
     estado: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="activo")
     busqueda: Mapped[str] = mapped_column(TSVECTOR, sa.Computed(EXPRESION_BUSQUEDA, persisted=True))
+
+    categoria: Mapped[Categoria | None] = relationship(lazy="raise")
+    unidad: Mapped[UnidadMedida] = relationship(lazy="raise")
