@@ -75,6 +75,23 @@ class RepositorioCatalogoTest {
     }
 
     @Test
+    fun `rnf 01 la ficha tras resolver un codigo no repite la peticion, pero solo una vez`() = runTest {
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(productoJson()))
+        val repo = repositorio()
+
+        val encontrado = assertIs<ResultadoCodigo.Encontrado>(repo.porCodigo("7701234567890"))
+        // El escaneo ya trajo el producto con su stock (RF-CAT-008): la ficha lo reutiliza.
+        val ficha = assertIs<Resultado.Exito<*>>(repo.producto(encontrado.producto.id)).valor
+        assertEquals(encontrado.producto, ficha)
+        assertEquals(1, servidor.requestCount, "la ficha no debe pedir de nuevo lo que acaba de llegar")
+
+        // Al volver de registrar un movimiento la ficha recarga: el atajo no se reutiliza (RF-INV-003).
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(productoJson(nombre = "Cuaderno 100 hojas")))
+        assertIs<Resultado.Exito<*>>(repo.producto(encontrado.producto.id))
+        assertEquals(2, servidor.requestCount)
+    }
+
+    @Test
     fun `rf cat 007 la busqueda por texto pagina por cursor`() = runTest {
         servidor.enqueue(
             MockResponse().setResponseCode(200).setBody(

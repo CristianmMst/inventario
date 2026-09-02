@@ -19,6 +19,7 @@ import co.inventario.domain.modelo.UnidadMedida
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -77,14 +78,27 @@ interface RepositorioCatalogo {
 @Singleton
 class RepositorioCatalogoApi @Inject constructor(private val api: InventarioApi) : RepositorioCatalogo {
 
+    /**
+     * RNF-01: `por-codigo` ya devuelve el producto con su stock, así que la ficha que se abre
+     * justo después lo toma de aquí en vez de pedirlo otra vez. Se consume **una sola vez**: al
+     * volver de registrar un movimiento la ficha recarga de verdad (RF-INV-003).
+     */
+    private val recienResuelto = AtomicReference<Producto?>(null)
+
     override suspend fun porCodigo(codigo: String): ResultadoCodigo =
         when (val r = llamada({ api.productoPorCodigo(codigo) }) { it.aDominio() }) {
-            is Resultado.Exito -> ResultadoCodigo.Encontrado(r.valor)
+            is Resultado.Exito -> {
+                recienResuelto.set(r.valor)
+                ResultadoCodigo.Encontrado(r.valor)
+            }
             is Resultado.Fallo ->
                 if (r.error.codigo == "PRODUCTO_NO_ENCONTRADO") ResultadoCodigo.Desconocido(codigo) else ResultadoCodigo.Error(r.error)
         }
 
-    override suspend fun producto(id: String): Resultado<Producto> = llamada({ api.producto(id) }) { it.aDominio() }
+    override suspend fun producto(id: String): Resultado<Producto> {
+        recienResuelto.getAndSet(null)?.takeIf { it.id == id }?.let { return Resultado.Exito(it) }
+        return llamada({ api.producto(id) }) { it.aDominio() }
+    }
 
     override suspend fun buscar(texto: String, cursor: String?): Resultado<Pagina<Producto>> =
         llamada({ api.buscar(texto, cursor) }) { it.aDominio { p -> p.aDominio() } }
