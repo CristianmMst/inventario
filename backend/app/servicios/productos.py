@@ -18,8 +18,10 @@ from app.esquemas.catalogo import (
     ProductoSalida,
     UnidadMedidaSalida,
 )
+from app.infra.paginacion import Pagina, ParametrosPagina, decodificar_cursor, paginar
 from app.modelos import catalogo as m
 from app.repositorios.catalogo import (
+    RepositorioBusqueda,
     RepositorioCategorias,
     RepositorioCodigosBarras,
     RepositorioProductos,
@@ -265,3 +267,43 @@ async def quitar_codigo(
                 {"codigo": codigo},
             )
         await repo.borrar(existente)
+
+
+async def por_codigo_barras(
+    sesion: AsyncSession, negocio_id: uuid.UUID, codigo: str
+) -> ProductoSalida:
+    """RF-CAT-008 / RF-CAT-009: el 404 incluye el código consultado para que la app ofrezca el
+    alta precargada sin una segunda llamada. Nada se crea solo (RN-14)."""
+    async with sesion.begin():
+        producto = await RepositorioBusqueda(sesion).por_codigo_barras(negocio_id, codigo)
+        if producto is None:
+            raise err.NoEncontrado(
+                "PRODUCTO_NO_ENCONTRADO",
+                f"Ningún producto tiene el código {codigo}.",
+                {"codigo": codigo},
+            )
+        return a_salida(producto, await _Contexto(sesion, negocio_id).moneda_base())
+
+
+async def buscar(
+    sesion: AsyncSession, negocio_id: uuid.UUID, texto: str, pagina: ParametrosPagina
+) -> Pagina[ProductoSalida]:
+    """RF-CAT-007: búsqueda por texto paginada por relevancia."""
+    texto = texto.strip()
+    if not texto:
+        raise err.ValidacionInvalida("BUSQUEDA_VACIA", "Escribe algo para buscar.")
+    despues = None
+    if pagina.cursor:
+        c = decodificar_cursor(pagina.cursor)
+        despues = (float(c["r"]), uuid.UUID(str(c["id"])))
+    async with sesion.begin():
+        filas = await RepositorioBusqueda(sesion).por_texto(
+            negocio_id, texto, pagina.limit + 1, despues
+        )
+        moneda_base = await _Contexto(sesion, negocio_id).moneda_base()
+    rangos = {p.id: r for p, r in filas}
+    return paginar(
+        [a_salida(p, moneda_base) for p, _ in filas],
+        pagina.limit,
+        clave_de=lambda s: {"r": rangos[s.id], "id": str(s.id)},
+    )

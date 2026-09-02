@@ -1,9 +1,11 @@
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Contexto, SesionDb
+from app.api.deps import Contexto, SesionDb, paginacion
 from app.esquemas.catalogo import ProductoEdicion, ProductoNuevo, ProductoSalida
+from app.infra.paginacion import Pagina, ParametrosPagina
 from app.servicios import productos as servicio
 
 router = APIRouter(prefix="/productos", tags=["catalogo"])
@@ -13,6 +15,44 @@ router = APIRouter(prefix="/productos", tags=["catalogo"])
 async def crear(datos: ProductoNuevo, sesion: SesionDb, contexto: Contexto) -> ProductoSalida:
     """Alta de producto. Nombre y unidad obligatorios; el SKU se genera si falta (RF-CAT-001)."""
     return await servicio.crear(sesion, contexto.negocio_id, datos)
+
+
+@router.get("/buscar", response_model=Pagina[ProductoSalida])
+async def buscar(
+    q: Annotated[str, Query(min_length=1, max_length=200, description="Texto a buscar")],
+    sesion: SesionDb,
+    contexto: Contexto,
+    pagina: Annotated[ParametrosPagina, Depends(paginacion)],
+) -> Pagina[ProductoSalida]:
+    """Búsqueda por texto sobre nombre, SKU y categoría, insensible a mayúsculas y tildes, con
+    coincidencia parcial y resultados por relevancia (RF-CAT-007)."""
+    return await servicio.buscar(sesion, contexto.negocio_id, q, pagina)
+
+
+@router.get(
+    "/por-codigo/{codigo}",
+    response_model=ProductoSalida,
+    responses={
+        404: {
+            "description": "Ningún producto tiene ese código. `details.codigo` trae el código "
+            "consultado para precargar el alta (RF-CAT-009).",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "PRODUCTO_NO_ENCONTRADO",
+                            "message": "Ningún producto tiene el código 7701234567890.",
+                            "details": {"codigo": "7701234567890"},
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
+async def por_codigo(codigo: str, sesion: SesionDb, contexto: Contexto) -> ProductoSalida:
+    """Escaneo: búsqueda por código de barras exacto (RF-CAT-008)."""
+    return await servicio.por_codigo_barras(sesion, contexto.negocio_id, codigo)
 
 
 @router.get("/{producto_id}", response_model=ProductoSalida)

@@ -115,3 +115,80 @@ class RepositorioCodigosBarras:
 
     async def borrar(self, codigo: CodigoBarras) -> None:
         await self._s.delete(codigo)
+
+
+CONFIG_BUSQUEDA = "espanol_sin_tildes"
+
+
+def _a_tsquery(texto: str) -> str:
+    """Convierte lo que teclea el usuario en una tsquery segura: cada palabra entre comillas
+    (así los operadores &, |, !, :* del texto no se interpretan) y con prefijo `:*` para la
+    coincidencia parcial. Varias palabras exigen todas."""
+    palabras = []
+    for cruda in texto.split():
+        limpia = cruda.replace("\\", "").replace("'", "")
+        if limpia:
+            palabras.append(f"'{limpia}':*")
+    return " & ".join(palabras)
+
+
+class RepositorioBusqueda:
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._s = sesion
+
+    def _cargar(self, consulta: sa.Select[tuple[Producto]]) -> sa.Select[tuple[Producto]]:
+        return consulta.options(
+            selectinload(Producto.categoria),
+            selectinload(Producto.unidad),
+            selectinload(Producto.codigos_barras),
+        ).execution_options(populate_existing=True)
+
+    async def por_codigo_barras(self, negocio_id: uuid.UUID, codigo: str) -> Producto | None:
+        """RNF-01: una sola lectura por el índice único (negocio_id, codigo)."""
+        return (
+            await self._s.execute(
+                self._cargar(
+                    sa.select(Producto)
+                    .join(CodigoBarras, CodigoBarras.producto_id == Producto.id)
+                    .where(CodigoBarras.negocio_id == negocio_id, CodigoBarras.codigo == codigo)
+                )
+            )
+        ).scalar_one_or_none()
+
+    async def por_texto(
+        self,
+        negocio_id: uuid.UUID,
+        texto: str,
+        limite: int,
+        despues_de: tuple[float, uuid.UUID] | None,
+    ) -> list[tuple[Producto, float]]:
+        """RF-CAT-007: nombre, SKU y categoría; insensible a mayúsculas y tildes; por relevancia.
+        Solo productos activos (RF-CAT-011)."""
+        tsquery = _a_tsquery(texto)
+        if not tsquery:
+            return []
+        q = sa.func.to_tsquery(CONFIG_BUSQUEDA, tsquery)
+        categorias_que_coinciden = sa.select(Categoria.id).where(
+            Categoria.negocio_id == negocio_id,
+            sa.func.to_tsvector(CONFIG_BUSQUEDA, Categoria.nombre).op("@@")(q),
+        )
+        rango = sa.func.ts_rank(Producto.busqueda, q).label("rango")
+        consulta = (
+            sa.select(Producto, rango)
+            .where(
+                Producto.negocio_id == negocio_id,
+                Producto.estado == "activo",
+                sa.or_(
+                    Producto.busqueda.op("@@")(q),
+                    Producto.categoria_id.in_(categorias_que_coinciden),
+                ),
+            )
+            .order_by(rango.desc(), Producto.id.desc())
+            .limit(limite)
+        )
+        if despues_de is not None:
+            r, pid = despues_de
+            consulta = consulta.where(sa.tuple_(rango, Producto.id) < sa.tuple_(r, pid))
+        consulta = self._cargar(consulta)  # type: ignore[arg-type]
+        filas = (await self._s.execute(consulta)).all()
+        return [(f[0], float(f[1])) for f in filas]
