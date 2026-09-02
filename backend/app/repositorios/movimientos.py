@@ -21,3 +21,12 @@ class RepositorioMovimientos:
                 )
             )
         ).scalar_one_or_none()
+
+    async def marcar_anulado(self, movimiento_id: uuid.UUID) -> int:
+        """Fija `anulado_en` si aún es nulo. Devuelve filas afectadas (1 o 0)."""
+        resultado = await self._s.execute(
+            sa.update(Movimiento)
+            .where(Movimiento.id == movimiento_id, Movimiento.anulado_en.is_(None))
+            .values(anulado_en=sa.func.now())
+        )
+        return int(resultado.rowcount or 0)

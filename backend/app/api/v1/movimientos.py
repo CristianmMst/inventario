@@ -4,7 +4,12 @@ from fastapi import APIRouter, Request, status
 from starlette.responses import JSONResponse
 
 from app.api.deps import Contexto, SesionDb
-from app.esquemas.inventario import MovimientoNuevo, MovimientoSalida, StockSalida
+from app.esquemas.inventario import (
+    AnulacionEntrada,
+    MovimientoNuevo,
+    MovimientoSalida,
+    StockSalida,
+)
 from app.infra.idempotencia import ClaveIdempotencia, ejecutar_idempotente
 from app.repositorios.stock import RepositorioStock
 from app.servicios import movimientos as servicio
@@ -66,4 +71,33 @@ async def stock(producto_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) ->
         )
     return StockSalida(
         producto_id=producto_id, cantidad=cantidad.a_api(), actualizado_en=actualizado_en
+    )
+
+
+@router.get("/{movimiento_id}", response_model=MovimientoSalida)
+async def detalle(
+    movimiento_id: uuid.UUID, sesion: SesionDb, contexto: Contexto
+) -> MovimientoSalida:
+    return await servicio.obtener(sesion, contexto.negocio_id, movimiento_id)
+
+
+@router.post(
+    "/{movimiento_id}/anular", status_code=status.HTTP_201_CREATED, response_model=MovimientoSalida
+)
+async def anular(
+    movimiento_id: uuid.UUID,
+    datos: AnulacionEntrada,
+    request: Request,
+    sesion: SesionDb,
+    contexto: Contexto,
+    clave: ClaveIdempotencia,
+) -> JSONResponse:
+    """Anula un movimiento creando su contramovimiento (RF-INV-008). Exige nota. Un anulado no
+    se vuelve a anular y un contramovimiento no se anula (409)."""
+
+    async def operacion() -> MovimientoSalida:
+        return await servicio.anular(sesion, contexto, movimiento_id, datos)
+
+    return await ejecutar_idempotente(
+        sesion, contexto, clave, request, status.HTTP_201_CREATED, operacion
     )

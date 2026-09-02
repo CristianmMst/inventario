@@ -23,7 +23,14 @@ from app.dominio.movimientos import (
     validar_cantidad_movimiento,
 )
 from app.dominio.tipos import Cantidad, TipoUnidad, UnidadMedida
-from app.esquemas.inventario import AutorSalida, MovimientoNuevo, MovimientoSalida
+from app.esquemas.inventario import (
+    AnulacionEntrada,
+    AutorSalida,
+    ConteoEntrada,
+    ConteoSalida,
+    MovimientoNuevo,
+    MovimientoSalida,
+)
 from app.modelos import catalogo as mc
 from app.modelos.inventario import Movimiento
 from app.repositorios.catalogo import RepositorioProductos
@@ -196,3 +203,108 @@ async def producto_existente(
     if producto is None:
         raise err.NoEncontrado("PRODUCTO_NO_ENCONTRADO", "Ese producto no existe.")
     return producto
+
+
+def _movimiento_no_encontrado() -> err.NoEncontrado:
+    return err.NoEncontrado("MOVIMIENTO_NO_ENCONTRADO", "Ese movimiento no existe.")
+
+
+async def obtener(
+    sesion: AsyncSession, negocio_id: uuid.UUID, movimiento_id: uuid.UUID
+) -> MovimientoSalida:
+    async with sesion.begin():
+        movimiento = await RepositorioMovimientos(sesion).por_id(negocio_id, movimiento_id)
+        if movimiento is None:
+            raise _movimiento_no_encontrado()
+        return a_salida(movimiento)
+
+
+async def anular(
+    sesion: AsyncSession,
+    contexto: ContextoNegocio,
+    movimiento_id: uuid.UUID,
+    datos: AnulacionEntrada,
+) -> MovimientoSalida:
+    """RF-INV-008 / RN-02: contramovimiento de igual cantidad y signo contrario que referencia
+    al original, con nota obligatoria; el original queda marcado. Un contramovimiento no se
+    anula y un anulado no se vuelve a anular."""
+    repo = RepositorioMovimientos(sesion)
+    async with sesion.begin():
+        original = await repo.por_id(contexto.negocio_id, movimiento_id)
+        if original is None:
+            raise _movimiento_no_encontrado()
+        if original.tipo == TipoMovimiento.CONTRAMOVIMIENTO.value:
+            raise err.Conflicto(
+                "CONTRAMOVIMIENTO_NO_ANULABLE",
+                "Una anulación no se anula. Si hace falta, registra el movimiento de nuevo.",
+                {"movimiento_id": str(original.id)},
+            )
+        if original.anulado_en is not None:
+            raise err.Conflicto(
+                "MOVIMIENTO_YA_ANULADO",
+                "Ese movimiento ya fue anulado.",
+                {"movimiento_id": str(original.id), "anulado_en": original.anulado_en.isoformat()},
+            )
+        await validar_motivo(sesion, TipoMovimiento.CONTRAMOVIMIENTO, "anulacion", datos.nota)
+        producto = await producto_operable(sesion, contexto.negocio_id, original.producto_id)
+        contra = await aplicar_movimiento(
+            sesion,
+            contexto,
+            producto,
+            tipo=TipoMovimiento.CONTRAMOVIMIENTO,
+            cantidad=Cantidad(original.cantidad),
+            direccion=-original.direccion,  # type: ignore[arg-type]
+            motivo="anulacion",
+            nota=datos.nota,
+            forzado=False,
+            origen=origen_de(contexto),
+            anula_movimiento_id=original.id,
+        )
+        # Marcar el original con la fila de stock ya bloqueada; si otra transacción lo anuló
+        # entre la lectura y aquí, el WHERE no afecta filas y todo se revierte.
+        marcadas = await repo.marcar_anulado(original.id)
+        if marcadas != 1:
+            raise err.Conflicto(
+                "MOVIMIENTO_YA_ANULADO",
+                "Ese movimiento ya fue anulado.",
+                {"movimiento_id": str(original.id)},
+            )
+        return a_salida(contra)
+
+
+async def contar(
+    sesion: AsyncSession,
+    contexto: ContextoNegocio,
+    producto_id: uuid.UUID,
+    datos: ConteoEntrada,
+) -> ConteoSalida:
+    """RF-INV-013 / RN-15: ajuste por la diferencia entre lo contado y el stock; delta cero no
+    crea movimiento."""
+    contada = Cantidad(Decimal(datos.cantidad_contada))
+    async with sesion.begin():
+        producto = await producto_operable(sesion, contexto.negocio_id, producto_id)
+        contada.validar_para(unidad_de(producto))
+        await validar_motivo(sesion, TipoMovimiento.AJUSTE, "conteo_fisico", datos.nota)
+        actual = await RepositorioStock(sesion).bloquear(contexto.negocio_id, producto.id)
+        diferencia = contada - actual
+        movimiento = None
+        if diferencia.valor != 0:
+            movimiento = await aplicar_movimiento(
+                sesion,
+                contexto,
+                producto,
+                tipo=TipoMovimiento.AJUSTE,
+                cantidad=Cantidad(abs(diferencia.valor)),
+                direccion=1 if diferencia.valor > 0 else -1,
+                motivo="conteo_fisico",
+                nota=datos.nota,
+                forzado=False,
+                origen=origen_de(contexto),
+            )
+        return ConteoSalida(
+            producto_id=producto.id,
+            stock_anterior=actual.a_api(),
+            cantidad_contada=contada.a_api(),
+            diferencia=diferencia.a_api(),
+            movimiento=a_salida(movimiento) if movimiento is not None else None,
+        )

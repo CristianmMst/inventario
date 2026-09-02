@@ -54,3 +54,27 @@ class StockSalida(BaseModel):
     producto_id: uuid.UUID
     cantidad: str
     actualizado_en: datetime | None
+
+
+class AnulacionEntrada(BaseModel):
+    """RF-INV-008: la anulación exige motivo escrito (RN-02); el motivo fijo es `anulacion`."""
+
+    nota: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+        | None
+    ) = None
+
+
+class ConteoEntrada(BaseModel):
+    """RF-INV-013 / RN-15: se declara la cantidad contada; el servidor calcula el delta."""
+
+    cantidad_contada: CantidadCadena
+    nota: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class ConteoSalida(BaseModel):
+    producto_id: uuid.UUID
+    stock_anterior: str
+    cantidad_contada: str
+    diferencia: str
+    movimiento: MovimientoSalida | None

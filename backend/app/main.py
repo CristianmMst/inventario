@@ -6,6 +6,7 @@ from app.api.v1 import (
     auth,
     categorias,
     codigos_barras,
+    conteos,
     motivos,
     movimientos,
     negocio,
@@ -40,4 +41,5 @@ api_v1.include_router(codigos_barras.router)
 api_v1.include_router(motivos.router)
 api_v1.include_router(movimientos.router)
 api_v1.include_router(movimientos.router_stock)
+api_v1.include_router(conteos.router)
 app.include_router(api_v1)
