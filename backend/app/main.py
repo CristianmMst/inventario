@@ -1,7 +1,16 @@
 from fastapi import APIRouter, FastAPI
 
 from app.api.errores import registrar_manejadores
-from app.api.v1 import api_keys, auth, categorias, codigos_barras, negocio, productos, unidades
+from app.api.v1 import (
+    api_keys,
+    auth,
+    categorias,
+    codigos_barras,
+    motivos,
+    negocio,
+    productos,
+    unidades,
+)
 from app.config import obtener_ajustes
 from app.infra.logging import configurar_logging, middleware_request_id
 
@@ -27,4 +36,5 @@ api_v1.include_router(unidades.router)
 api_v1.include_router(categorias.router)
 api_v1.include_router(productos.router)
 api_v1.include_router(codigos_barras.router)
+api_v1.include_router(motivos.router)
 app.include_router(api_v1)

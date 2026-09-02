@@ -21,13 +21,23 @@ def _tablas(url: str) -> set[str]:
         return set(filas)
 
 
-def test_constitucion_4_upgrade_head_y_downgrade_base_sobre_base_limpia(postgres_url: str) -> None:
+async def test_constitucion_4_upgrade_head_y_downgrade_base_sobre_base_limpia(
+    postgres_url: str,
+) -> None:
+    import asyncio
+
+    from app.infra import db
+
     cfg = _config(postgres_url)
-    command.upgrade(cfg, "head")
-    assert "alembic_version" in _tablas(postgres_url)
-    command.downgrade(cfg, "base")
-    assert _tablas(postgres_url) - {"alembic_version"} == set()
-    command.upgrade(cfg, "head")
+    try:
+        await asyncio.to_thread(command.upgrade, cfg, "head")
+        assert "alembic_version" in _tablas(postgres_url)
+        await asyncio.to_thread(command.downgrade, cfg, "base")
+        assert _tablas(postgres_url) - {"alembic_version"} == set()
+        await asyncio.to_thread(command.upgrade, cfg, "head")
+    finally:
+        # Recrear los tipos cambia sus OID; las conexiones del pool los tienen cacheados.
+        await db.motor().dispose()
 
 
 def test_constitucion_4_modelos_y_migraciones_coinciden(postgres_url: str) -> None:
