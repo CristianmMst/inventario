@@ -1,9 +1,12 @@
 """unidades_medida, categorias, productos, codigos_barras — RF-CAT-001..014."""
 
+import uuid
+
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.modelos.base import Base
+from app.modelos.base import Base, ConId, ConMarcasDeTiempo
 
 TIPOS_UNIDAD = ("discreta", "continua")
 
@@ -23,3 +26,15 @@ class UnidadMedida(Base):
     tipo: Mapped[str] = mapped_column(sa.Text, nullable=False)
     decimales: Mapped[int] = mapped_column(sa.SmallInteger, nullable=False)
     orden: Mapped[int] = mapped_column(sa.SmallInteger, nullable=False)
+
+
+class Categoria(ConId, ConMarcasDeTiempo, Base):
+    """Planas, propias del negocio, nombre único sin distinguir mayúsculas (RF-CAT-005)."""
+
+    __tablename__ = "categorias"
+    __table_args__ = (sa.UniqueConstraint("negocio_id", "nombre"),)
+
+    negocio_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(CITEXT, nullable=False)

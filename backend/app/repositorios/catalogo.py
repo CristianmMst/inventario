@@ -1,7 +1,9 @@
+import uuid
+
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modelos.catalogo import UnidadMedida
+from app.modelos.catalogo import Categoria, UnidadMedida
 
 
 class RepositorioUnidades:
@@ -18,3 +20,36 @@ class RepositorioUnidades:
 
     async def por_codigo(self, codigo: str) -> UnidadMedida | None:
         return await self._s.get(UnidadMedida, codigo)
+
+
+class RepositorioCategorias:
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._s = sesion
+
+    def guardar(self, categoria: Categoria) -> None:
+        self._s.add(categoria)
+
+    async def por_id(self, negocio_id: uuid.UUID, categoria_id: uuid.UUID) -> Categoria | None:
+        return (
+            await self._s.execute(
+                sa.select(Categoria).where(
+                    Categoria.negocio_id == negocio_id, Categoria.id == categoria_id
+                )
+            )
+        ).scalar_one_or_none()
+
+    async def listar(
+        self, negocio_id: uuid.UUID, limite: int, despues_de: tuple[str, uuid.UUID] | None
+    ) -> list[Categoria]:
+        consulta = (
+            sa.select(Categoria)
+            .where(Categoria.negocio_id == negocio_id)
+            .order_by(Categoria.nombre, Categoria.id)
+            .limit(limite)
+        )
+        if despues_de is not None:
+            nombre, cid = despues_de
+            consulta = consulta.where(
+                sa.tuple_(Categoria.nombre, Categoria.id) > sa.tuple_(nombre, cid)
+            )
+        return list((await self._s.execute(consulta)).scalars())
