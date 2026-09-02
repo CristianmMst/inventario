@@ -307,3 +307,56 @@ async def buscar(
         pagina.limit,
         clave_de=lambda s: {"r": rangos[s.id], "id": str(s.id)},
     )
+
+
+async def listar(
+    sesion: AsyncSession,
+    negocio_id: uuid.UUID,
+    pagina: ParametrosPagina,
+    *,
+    categoria_id: uuid.UUID | None,
+    estado: str,
+) -> Pagina[ProductoSalida]:
+    """RF-CAT-014. `estado` es activo (por defecto), archivado o todos."""
+    despues = None
+    if pagina.cursor:
+        c = decodificar_cursor(pagina.cursor)
+        despues = (str(c["n"]), uuid.UUID(str(c["id"])))
+    async with sesion.begin():
+        filas = await RepositorioProductos(sesion).listar(
+            negocio_id,
+            categoria_id=categoria_id,
+            estado=None if estado == "todos" else estado,
+            limite=pagina.limit + 1,
+            despues_de=despues,
+        )
+        moneda_base = await _Contexto(sesion, negocio_id).moneda_base()
+    return paginar(
+        [a_salida(p, moneda_base) for p in filas],
+        pagina.limit,
+        clave_de=lambda s: {"n": s.nombre, "id": str(s.id)},
+    )
+
+
+async def _cambiar_estado(
+    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID, estado: str
+) -> ProductoSalida:
+    async with sesion.begin():
+        producto = await RepositorioProductos(sesion).por_id(negocio_id, producto_id)
+        if producto is None:
+            raise no_encontrado()
+        producto.estado = estado
+    return await obtener(sesion, negocio_id, producto_id)
+
+
+async def archivar(
+    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID
+) -> ProductoSalida:
+    """RF-CAT-011 / RN-17: sustituye al borrado. Conserva historial; sale de la operación."""
+    return await _cambiar_estado(sesion, negocio_id, producto_id, "archivado")
+
+
+async def desarchivar(
+    sesion: AsyncSession, negocio_id: uuid.UUID, producto_id: uuid.UUID
+) -> ProductoSalida:
+    return await _cambiar_estado(sesion, negocio_id, producto_id, "activo")

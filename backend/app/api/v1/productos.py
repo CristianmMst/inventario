@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -15,6 +15,20 @@ router = APIRouter(prefix="/productos", tags=["catalogo"])
 async def crear(datos: ProductoNuevo, sesion: SesionDb, contexto: Contexto) -> ProductoSalida:
     """Alta de producto. Nombre y unidad obligatorios; el SKU se genera si falta (RF-CAT-001)."""
     return await servicio.crear(sesion, contexto.negocio_id, datos)
+
+
+@router.get("", response_model=Pagina[ProductoSalida])
+async def listar(
+    sesion: SesionDb,
+    contexto: Contexto,
+    pagina: Annotated[ParametrosPagina, Depends(paginacion)],
+    categoria_id: Annotated[uuid.UUID | None, Query()] = None,
+    estado: Annotated[Literal["activo", "archivado", "todos"], Query()] = "activo",
+) -> Pagina[ProductoSalida]:
+    """Listado paginado con filtros por categoría y estado (RF-CAT-014)."""
+    return await servicio.listar(
+        sesion, contexto.negocio_id, pagina, categoria_id=categoria_id, estado=estado
+    )
 
 
 @router.get("/buscar", response_model=Pagina[ProductoSalida])
@@ -66,3 +80,17 @@ async def editar(
 ) -> ProductoSalida:
     """Edición parcial. Costo y precio sobrescriben el valor vigente (RF-CAT-010)."""
     return await servicio.editar(sesion, contexto.negocio_id, producto_id, datos)
+
+
+@router.post("/{producto_id}/archivar", response_model=ProductoSalida)
+async def archivar(producto_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) -> ProductoSalida:
+    """Archiva el producto: sale de las búsquedas de operación y no admite movimientos, pero
+    conserva su historial (RF-CAT-011, RN-17). Sustituye al borrado, que no existe."""
+    return await servicio.archivar(sesion, contexto.negocio_id, producto_id)
+
+
+@router.post("/{producto_id}/desarchivar", response_model=ProductoSalida)
+async def desarchivar(
+    producto_id: uuid.UUID, sesion: SesionDb, contexto: Contexto
+) -> ProductoSalida:
+    return await servicio.desarchivar(sesion, contexto.negocio_id, producto_id)

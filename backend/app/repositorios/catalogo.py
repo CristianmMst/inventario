@@ -77,6 +77,39 @@ class RepositorioProductos:
             )
         ).scalar_one_or_none()
 
+    async def listar(
+        self,
+        negocio_id: uuid.UUID,
+        *,
+        categoria_id: uuid.UUID | None,
+        estado: str | None,
+        limite: int,
+        despues_de: tuple[str, uuid.UUID] | None,
+    ) -> list[Producto]:
+        """RF-CAT-014: filtros por categoría y estado; orden por nombre e id (cursor estable)."""
+        consulta = (
+            sa.select(Producto)
+            .where(Producto.negocio_id == negocio_id)
+            .options(
+                selectinload(Producto.categoria),
+                selectinload(Producto.unidad),
+                selectinload(Producto.codigos_barras),
+            )
+            .execution_options(populate_existing=True)
+            .order_by(Producto.nombre, Producto.id)
+            .limit(limite)
+        )
+        if categoria_id is not None:
+            consulta = consulta.where(Producto.categoria_id == categoria_id)
+        if estado is not None:
+            consulta = consulta.where(Producto.estado == estado)
+        if despues_de is not None:
+            nombre, pid = despues_de
+            consulta = consulta.where(
+                sa.tuple_(Producto.nombre, Producto.id) > sa.tuple_(nombre, pid)
+            )
+        return list((await self._s.execute(consulta)).scalars())
+
     async def existe_sku(self, negocio_id: uuid.UUID, sku: str) -> bool:
         return (
             await self._s.execute(
