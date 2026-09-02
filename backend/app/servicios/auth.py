@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio import errores as err
-from app.esquemas.auth import NegocioSalida, Registro, Sesion, UsuarioSalida
+from app.esquemas.auth import Login, NegocioSalida, Registro, Sesion, UsuarioSalida
 from app.infra import seguridad
 from app.modelos.identidad import Negocio, Usuario
 from app.repositorios.identidad import RepositorioIdentidad
@@ -44,4 +44,14 @@ async def registrar(sesion: AsyncSession, datos: Registro) -> Sesion:
     except IntegrityError as e:
         # Un 409 escueto: no se revela nada más sobre la cuenta existente (RNF-12).
         raise err.Conflicto("CORREO_YA_REGISTRADO", "Ese correo ya tiene una cuenta.") from e
+    return _sesion_de(usuario, negocio)
+
+
+async def iniciar_sesion(sesion: AsyncSession, datos: Login) -> Sesion:
+    """RF-AUT-002. Un correo inexistente y una contraseña incorrecta responden igual (RNF-11)."""
+    repo = RepositorioIdentidad(sesion)
+    usuario = await repo.usuario_por_email(str(datos.email))
+    if usuario is None or not seguridad.verificar_contrasena(datos.password, usuario.password_hash):
+        raise err.NoAutenticado("CREDENCIAL_INVALIDA", "Correo o contraseña incorrectos.")
+    negocio = await repo.negocio_de_usuario(usuario.id)
     return _sesion_de(usuario, negocio)

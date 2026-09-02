@@ -39,3 +39,8 @@ class Sesion(BaseModel):
     expira_en_segundos: int
     usuario: UsuarioSalida
     negocio: NegocioSalida
+
+
+class Login(BaseModel):
+    email: EmailStr
+    password: Contrasena

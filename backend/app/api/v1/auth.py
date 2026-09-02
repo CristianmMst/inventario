@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.esquemas.auth import Registro, Sesion
+from app.esquemas.auth import Login, Registro, Sesion
 from app.infra.db import sesion as sesion_db
 from app.servicios import auth as servicio
 
@@ -16,3 +16,9 @@ SesionDb = Annotated[AsyncSession, Depends(sesion_db)]
 async def registro(datos: Registro, sesion: SesionDb) -> Sesion:
     """Crea usuario, negocio y membresía en una operación y abre sesión (RF-AUT-001)."""
     return await servicio.registrar(sesion, datos)
+
+
+@router.post("/login", response_model=Sesion)
+async def login(datos: Login, sesion: SesionDb) -> Sesion:
+    """Inicio de sesión: devuelve un token de acceso de vida corta (RF-AUT-002)."""
+    return await servicio.iniciar_sesion(sesion, datos)
