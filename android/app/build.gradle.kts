@@ -14,11 +14,12 @@ android {
         versionName = "1.0.0"
     }
 
+    // La app apunta al backend por la IP de la máquina en la red local (plan.md §10).
+    // Se sobreescribe con -PbackendUrl=http://192.168.x.y:8000/ al compilar.
+    val backendUrl = (project.findProperty("backendUrl") as String?) ?: "http://10.0.2.2:8000/"
+
     buildTypes {
         debug {
-            // La app apunta al backend por la IP de la máquina en la red local (plan.md §10).
-            // Se sobreescribe con -PbackendUrl=http://192.168.x.y:8000/ al compilar.
-            val backendUrl = (project.findProperty("backendUrl") as String?) ?: "http://10.0.2.2:8000/"
             buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
@@ -27,6 +28,17 @@ android {
             buildConfigField("String", "BACKEND_URL", "\"https://inventario.invalid/\"")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // Para medir RNF-10 (arranque < 3 s, cámara < 1,5 s) en un teléfono real: igual que
+        // release —no depurable, con R8— pero firmada con la clave de depuración para poder
+        // instalarla y apuntando al backend local. No se publica.
+        create("medicion") {
+            initWith(getByName("release"))
+            isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            matchingFallbacks += listOf("release")
         }
     }
 
