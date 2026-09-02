@@ -162,6 +162,24 @@ data class MotivoDto(
 )
 
 @Serializable
+data class AnulacionDto(val nota: String? = null)
+
+@Serializable
+data class ConteoEntradaDto(
+    @SerialName("cantidad_contada") val cantidadContada: String,
+    val nota: String? = null,
+)
+
+@Serializable
+data class ConteoSalidaDto(
+    @SerialName("producto_id") val productoId: String,
+    @SerialName("stock_anterior") val stockAnterior: String,
+    @SerialName("cantidad_contada") val cantidadContada: String,
+    val diferencia: String,
+    val movimiento: MovimientoDto? = null,
+)
+
+@Serializable
 data class StockDto(
     @SerialName("producto_id") val productoId: String,
     val cantidad: String,

@@ -1,5 +1,8 @@
 package co.inventario.data.red
 
+import co.inventario.data.red.dto.AnulacionDto
+import co.inventario.data.red.dto.ConteoEntradaDto
+import co.inventario.data.red.dto.ConteoSalidaDto
 import co.inventario.data.red.dto.LoginDto
 import co.inventario.data.red.dto.MotivoDto
 import co.inventario.data.red.dto.MovimientoDto
@@ -78,6 +81,20 @@ interface InventarioApi {
         @Header("Idempotency-Key") claveIdempotencia: String,
         @Body datos: MovimientoNuevoDto,
     ): Response<MovimientoDto>
+
+    @POST("api/v1/movimientos/{id}/anular")
+    suspend fun anularMovimiento(
+        @Header("Idempotency-Key") claveIdempotencia: String,
+        @Path("id") movimientoId: String,
+        @Body datos: AnulacionDto,
+    ): Response<MovimientoDto>
+
+    @POST("api/v1/productos/{id}/conteo")
+    suspend fun conteo(
+        @Header("Idempotency-Key") claveIdempotencia: String,
+        @Path("id") productoId: String,
+        @Body datos: ConteoEntradaDto,
+    ): Response<ConteoSalidaDto>
 
     @GET("api/v1/productos/{id}/movimientos")
     suspend fun historial(
