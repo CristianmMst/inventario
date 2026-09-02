@@ -6,8 +6,9 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modelos.compras import OrdenCompra, OrdenCompraLinea, Proveedor
+from app.modelos.compras import OrdenCompra, OrdenCompraLinea, Proveedor, Recepcion, RecepcionLinea
 from app.modelos.identidad import Negocio
+from app.modelos.inventario import Movimiento
 
 
 class RepositorioProveedores:
@@ -59,7 +60,12 @@ class RepositorioProveedores:
                 sa.select(sa.literal(True)).where(OrdenCompra.proveedor_id == proveedor_id).limit(1)
             )
         ).scalar_one_or_none()
-        return hay_ordenes is True
+        hay_recepciones = (
+            await self._s.execute(
+                sa.select(sa.literal(True)).where(Recepcion.proveedor_id == proveedor_id).limit(1)
+            )
+        ).scalar_one_or_none()
+        return hay_ordenes is True or hay_recepciones is True
 
 
 class RepositorioOrdenes:
@@ -130,9 +136,121 @@ class RepositorioOrdenes:
         return list((await self._s.execute(self._cargada(consulta))).scalars())
 
     async def recibido_por_linea(self, orden_id: uuid.UUID) -> dict[uuid.UUID, Decimal]:
-        """Σ recibido por línea desde las recepciones confirmadas. Llega con T-039/T-040."""
-        return {}
+        """Σ recibido por línea de orden, solo de recepciones confirmadas o corregidas."""
+        filas = (
+            await self._s.execute(
+                sa.select(
+                    RecepcionLinea.orden_linea_id, sa.func.sum(RecepcionLinea.cantidad_recibida)
+                )
+                .join(Recepcion, Recepcion.id == RecepcionLinea.recepcion_id)
+                .where(
+                    Recepcion.orden_id == orden_id,
+                    Recepcion.estado != "borrador",
+                    RecepcionLinea.orden_linea_id.is_not(None),
+                )
+                .group_by(RecepcionLinea.orden_linea_id)
+            )
+        ).all()
+        return {f[0]: Decimal(f[1]) for f in filas}
 
     async def tiene_recepciones(self, orden_id: uuid.UUID) -> bool:
-        """Recepciones (borrador o confirmadas) contra la orden. Llega con T-039."""
-        return False
+        """Recepciones confirmadas o corregidas contra la orden."""
+        fila = (
+            await self._s.execute(
+                sa.select(sa.literal(True))
+                .where(Recepcion.orden_id == orden_id, Recepcion.estado != "borrador")
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        return fila is True
+
+
+class RepositorioRecepciones:
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._s = sesion
+
+    def _cargada(self, consulta: sa.Select[tuple[Recepcion]]) -> sa.Select[tuple[Recepcion]]:
+        return consulta.options(
+            selectinload(Recepcion.proveedor),
+            selectinload(Recepcion.orden),
+            selectinload(Recepcion.lineas).selectinload(RecepcionLinea.producto),
+        ).execution_options(populate_existing=True)
+
+    def guardar(self, recepcion: Recepcion) -> None:
+        self._s.add(recepcion)
+
+    async def siguiente_secuencia(self, negocio_id: uuid.UUID) -> int:
+        await self._s.execute(
+            sa.select(Negocio.id).where(Negocio.id == negocio_id).with_for_update()
+        )
+        actual = (
+            await self._s.execute(
+                sa.select(sa.func.coalesce(sa.func.max(Recepcion.secuencia), 0)).where(
+                    Recepcion.negocio_id == negocio_id
+                )
+            )
+        ).scalar_one()
+        return int(actual) + 1
+
+    async def por_id(
+        self, negocio_id: uuid.UUID, recepcion_id: uuid.UUID, *, bloquear: bool = False
+    ) -> Recepcion | None:
+        consulta = sa.select(Recepcion).where(
+            Recepcion.negocio_id == negocio_id, Recepcion.id == recepcion_id
+        )
+        if bloquear:
+            consulta = consulta.with_for_update(of=Recepcion)
+        return (await self._s.execute(self._cargada(consulta))).scalar_one_or_none()
+
+    async def listar(
+        self,
+        negocio_id: uuid.UUID,
+        *,
+        proveedor_id: uuid.UUID | None = None,
+        orden_id: uuid.UUID | None = None,
+        estado: str | None = None,
+        desde: date | None = None,
+        hasta: date | None = None,
+        limite: int,
+        despues_de: tuple[int] | None,
+    ) -> list[Recepcion]:
+        consulta = (
+            sa.select(Recepcion)
+            .where(Recepcion.negocio_id == negocio_id)
+            .order_by(Recepcion.secuencia.desc())
+            .limit(limite)
+        )
+        if proveedor_id is not None:
+            consulta = consulta.where(Recepcion.proveedor_id == proveedor_id)
+        if orden_id is not None:
+            consulta = consulta.where(Recepcion.orden_id == orden_id)
+        if estado is not None:
+            consulta = consulta.where(Recepcion.estado == estado)
+        if desde is not None:
+            consulta = consulta.where(Recepcion.fecha >= desde)
+        if hasta is not None:
+            consulta = consulta.where(Recepcion.fecha <= hasta)
+        if despues_de is not None:
+            consulta = consulta.where(Recepcion.secuencia < despues_de[0])
+        return list((await self._s.execute(self._cargada(consulta))).scalars())
+
+    async def movimientos_de(self, recepcion_id: uuid.UUID) -> list[uuid.UUID]:
+        filas = (
+            await self._s.execute(
+                sa.select(Movimiento.id)
+                .where(Movimiento.recepcion_id == recepcion_id)
+                .order_by(Movimiento.ocurrido_en)
+            )
+        ).scalars()
+        return list(filas)
+
+    async def hay_confirmadas(self, negocio_id: uuid.UUID) -> bool:
+        """RN-10: un documento valorizado congela la moneda base del negocio."""
+        fila = (
+            await self._s.execute(
+                sa.select(sa.literal(True))
+                .where(Recepcion.negocio_id == negocio_id, Recepcion.estado != "borrador")
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        return fila is True

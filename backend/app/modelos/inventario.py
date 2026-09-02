@@ -65,7 +65,12 @@ class Movimiento(Base):
     anula_movimiento_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.ForeignKey("movimientos.id", ondelete="RESTRICT")
     )
-    recepcion_linea_id: Mapped[uuid.UUID | None] = mapped_column(sa.Uuid)
+    recepcion_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("recepciones.id", ondelete="RESTRICT")
+    )
+    recepcion_linea_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("recepciones_lineas.id", ondelete="RESTRICT")
+    )
     origen: Mapped[str] = mapped_column(sa.Text, nullable=False)
     autor_tipo: Mapped[str] = mapped_column(sa.Text, nullable=False)
     autor_id: Mapped[uuid.UUID] = mapped_column(sa.Uuid, nullable=False)

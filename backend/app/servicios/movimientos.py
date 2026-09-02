@@ -60,6 +60,7 @@ def a_salida(m: Movimiento) -> MovimientoSalida:
         ocurrido_en=m.ocurrido_en,
         anulado_en=m.anulado_en,
         anula_movimiento_id=m.anula_movimiento_id,
+        recepcion_id=m.recepcion_id,
         recepcion_linea_id=m.recepcion_linea_id,
     )
 
@@ -114,6 +115,7 @@ async def aplicar_movimiento(
     forzado: bool,
     origen: str,
     anula_movimiento_id: uuid.UUID | None = None,
+    recepcion_id: uuid.UUID | None = None,
     recepcion_linea_id: uuid.UUID | None = None,
 ) -> Movimiento:
     """Núcleo compartido por registro, anulación, conteo y recepción. Debe llamarse dentro de
@@ -146,6 +148,7 @@ async def aplicar_movimiento(
         forzado=salta_bloqueo,
         stock_resultante=nuevo.valor,
         anula_movimiento_id=anula_movimiento_id,
+        recepcion_id=recepcion_id,
         recepcion_linea_id=recepcion_linea_id,
         origen=origen,
         autor_tipo=contexto.autor.tipo,

@@ -13,6 +13,7 @@ from app.api.v1 import (
     ordenes_compra,
     productos,
     proveedores,
+    recepciones,
     unidades,
 )
 from app.config import obtener_ajustes
@@ -46,4 +47,5 @@ api_v1.include_router(movimientos.router_stock)
 api_v1.include_router(conteos.router)
 api_v1.include_router(proveedores.router)
 api_v1.include_router(ordenes_compra.router)
+api_v1.include_router(recepciones.router)
 app.include_router(api_v1)

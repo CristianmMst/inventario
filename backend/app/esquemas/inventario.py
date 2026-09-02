@@ -47,6 +47,7 @@ class MovimientoSalida(BaseModel):
     ocurrido_en: datetime
     anulado_en: datetime | None
     anula_movimiento_id: uuid.UUID | None
+    recepcion_id: uuid.UUID | None
     recepcion_linea_id: uuid.UUID | None
 
 
