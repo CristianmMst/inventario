@@ -29,7 +29,12 @@ fun NavegacionInventario(haySesion: Boolean, sesionCerrada: Flow<Unit>) {
         }
     }
 
-    NavHost(navController = nav, startDestination = if (haySesion) Ruta.Inicio else Ruta.Login) {
+    // Sin tamaño explícito el NavHost mide 0×0 dentro del ComposeView (wrap_content) y no se ve nada.
+    NavHost(
+        navController = nav,
+        startDestination = if (haySesion) Ruta.Inicio else Ruta.Login,
+        modifier = Modifier.fillMaxSize(),
+    ) {
         composable<Ruta.Login> {
             PantallaLogin(
                 alIniciarSesion = { nav.navigate(Ruta.Inicio) { popUpTo(0) { inclusive = true } } },
