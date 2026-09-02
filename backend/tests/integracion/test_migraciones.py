@@ -28,3 +28,21 @@ def test_constitucion_4_upgrade_head_y_downgrade_base_sobre_base_limpia(postgres
     command.downgrade(cfg, "base")
     assert _tablas(postgres_url) - {"alembic_version"} == set()
     command.upgrade(cfg, "head")
+
+
+def test_constitucion_4_modelos_y_migraciones_coinciden(postgres_url: str) -> None:
+    """Autogenerate no debe proponer ningún cambio: lo que hay en `head` es lo que
+    declaran los modelos."""
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+
+    import app.modelos  # noqa: F401
+    from app.modelos.base import Base
+
+    cfg = _config(postgres_url)
+    command.upgrade(cfg, "head")
+    motor = create_engine(postgres_url.replace("+asyncpg", "+psycopg"))
+    with motor.connect() as con:
+        contexto = MigrationContext.configure(con)
+        diferencias = compare_metadata(contexto, Base.metadata)
+    assert diferencias == []
