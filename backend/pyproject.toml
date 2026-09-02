@@ -41,6 +41,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+markers = ["rendimiento: mide p95 de RNF-01..04 contra la base sembrada; exige RENDIMIENTO_URL"]
 
 [tool.ruff]
 line-length = 100
@@ -49,6 +50,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N"]
 ignore = ["N818"]  # los errores de dominio se nombran en español (constitution.md §1)
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/semilla.py" = ["E501"]  # tuplas de datos de la semilla; partirlas las hace ilegibles
 
 [tool.mypy]
 python_version = "3.12"

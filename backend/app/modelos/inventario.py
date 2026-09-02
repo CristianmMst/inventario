@@ -63,13 +63,13 @@ class Movimiento(Base):
     stock_resultante: Mapped[Decimal] = mapped_column(sa.Numeric(14, 3), nullable=False)
     anulado_en: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     anula_movimiento_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("movimientos.id", ondelete="RESTRICT")
+        sa.ForeignKey("movimientos.id", ondelete="RESTRICT"), index=True
     )
     recepcion_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("recepciones.id", ondelete="RESTRICT")
+        sa.ForeignKey("recepciones.id", ondelete="RESTRICT"), index=True
     )
     recepcion_linea_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("recepciones_lineas.id", ondelete="RESTRICT")
+        sa.ForeignKey("recepciones_lineas.id", ondelete="RESTRICT"), index=True
     )
     origen: Mapped[str] = mapped_column(sa.Text, nullable=False)
     autor_tipo: Mapped[str] = mapped_column(sa.Text, nullable=False)

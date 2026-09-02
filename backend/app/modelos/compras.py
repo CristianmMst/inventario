@@ -128,7 +128,7 @@ class Recepcion(ConId, ConMarcasDeTiempo, Base):
         sa.ForeignKey("negocios.id", ondelete="CASCADE"), nullable=False
     )
     proveedor_id: Mapped[uuid.UUID] = mapped_column(
-        sa.ForeignKey("proveedores.id", ondelete="RESTRICT"), nullable=False
+        sa.ForeignKey("proveedores.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     orden_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.ForeignKey("ordenes_compra.id", ondelete="RESTRICT")
