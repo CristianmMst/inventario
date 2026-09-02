@@ -24,10 +24,18 @@ async def listar(
     pagina: Annotated[ParametrosPagina, Depends(paginacion)],
     categoria_id: Annotated[uuid.UUID | None, Query()] = None,
     estado: Annotated[Literal["activo", "archivado", "todos"], Query()] = "activo",
+    condicion_stock: Annotated[
+        Literal["bajo_minimo", "agotado", "con_stock"] | None, Query()
+    ] = None,
 ) -> Pagina[ProductoSalida]:
-    """Listado paginado con filtros por categoría y estado (RF-CAT-014)."""
+    """Listado paginado con filtros por categoría, estado y condición de stock (RF-CAT-014)."""
     return await servicio.listar(
-        sesion, contexto.negocio_id, pagina, categoria_id=categoria_id, estado=estado
+        sesion,
+        contexto.negocio_id,
+        pagina,
+        categoria_id=categoria_id,
+        estado=estado,
+        condicion_stock=condicion_stock,
     )
 
 

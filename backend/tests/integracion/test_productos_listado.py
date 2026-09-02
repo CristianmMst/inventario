@@ -1,6 +1,6 @@
 """RF-CAT-014: listado de productos paginado con filtros por categoría y estado.
 
-El filtro por condición de stock se prueba en H3, cuando exista `stock_productos` (T-028).
+El filtro por condición de stock se añadió al cerrar H3, con `stock_productos` ya creada.
 """
 
 import httpx
@@ -102,3 +102,67 @@ async def test_rf_aut_007_el_listado_no_mezcla_negocios(cliente: httpx.AsyncClie
     a, b = await _auth(cliente), await _auth(cliente)
     await _producto(cliente, a, nombre="De A")
     assert (await _listar(cliente, b))["datos"] == []
+
+
+async def _cargar(
+    cliente: httpx.AsyncClient, auth: dict[str, str], producto_id: str, cantidad: str
+) -> None:
+    import uuid
+
+    r = await cliente.post(
+        "/api/v1/movimientos",
+        json={
+            "producto_id": producto_id,
+            "tipo": "entrada",
+            "cantidad": cantidad,
+            "motivo": "carga_inicial",
+        },
+        headers=auth | {"Idempotency-Key": str(uuid.uuid4())},
+    )
+    assert r.status_code == 201, r.text
+
+
+async def test_rf_cat_014_filtro_por_condicion_de_stock(cliente: httpx.AsyncClient) -> None:
+    auth = await _auth(cliente)
+    agotado = await _producto(cliente, auth, nombre="Agotado", stock_minimo="2")
+    bajo = await _producto(cliente, auth, nombre="Bajo mínimo", stock_minimo="5")
+    con = await _producto(cliente, auth, nombre="Con stock", stock_minimo="1")
+    sin_minimo = await _producto(cliente, auth, nombre="Sin mínimo")
+    await _cargar(cliente, auth, bajo["id"], "3")
+    await _cargar(cliente, auth, con["id"], "10")
+    await _cargar(cliente, auth, sin_minimo["id"], "1")
+
+    def nombres(datos: dict) -> set[str]:
+        return {p["nombre"] for p in datos["datos"]}
+
+    assert nombres(await _listar(cliente, auth, condicion_stock="agotado")) == {"Agotado"}
+    assert nombres(await _listar(cliente, auth, condicion_stock="bajo_minimo")) == {
+        "Agotado",
+        "Bajo mínimo",
+    }
+    assert nombres(await _listar(cliente, auth, condicion_stock="con_stock")) == {
+        "Bajo mínimo",
+        "Con stock",
+        "Sin mínimo",
+    }
+    r = await cliente.get("/api/v1/productos", params={"condicion_stock": "mucho"}, headers=auth)
+    assert r.status_code == 422
+
+
+async def test_rf_cat_014_los_tres_filtros_combinados(cliente: httpx.AsyncClient) -> None:
+    auth = await _auth(cliente)
+    c1 = (await cliente.post("/api/v1/categorias", json={"nombre": "A"}, headers=auth)).json()
+    objetivo = await _producto(
+        cliente, auth, nombre="Objetivo", categoria_id=c1["id"], stock_minimo="5"
+    )
+    otro_bajo = await _producto(cliente, auth, nombre="Otro bajo", stock_minimo="5")
+    archivado = await _producto(
+        cliente, auth, nombre="Archivado", categoria_id=c1["id"], stock_minimo="5"
+    )
+    await _cargar(cliente, auth, objetivo["id"], "1")
+    await _cargar(cliente, auth, otro_bajo["id"], "1")
+    await cliente.post(f"/api/v1/productos/{archivado['id']}/archivar", headers=auth)
+    datos = await _listar(
+        cliente, auth, categoria_id=c1["id"], estado="activo", condicion_stock="bajo_minimo"
+    )
+    assert [p["nombre"] for p in datos["datos"]] == ["Objetivo"]

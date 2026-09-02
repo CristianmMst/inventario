@@ -73,7 +73,7 @@ async def test_rf_inv_004_veinte_salidas_simultaneas_sobre_stock_3_exactamente_3
 
 
 async def test_rn_03_entradas_y_salidas_simultaneas_terminan_con_la_suma_correcta(
-    cliente: httpx.AsyncClient,
+    cliente: httpx.AsyncClient, sesion: AsyncSession
 ) -> None:
     auth = await _sesion(cliente)
     p = await _producto(cliente, auth)
@@ -92,7 +92,17 @@ async def test_rn_03_entradas_y_salidas_simultaneas_terminan_con_la_suma_correct
     respuestas = await asyncio.gather(*tareas)
     assert all(r.status_code == 201 for r in respuestas), [r.text for r in respuestas]
     stock = await cliente.get(f"/api/v1/productos/{p['id']}/stock", headers=auth)
-    assert stock.json()["cantidad"] == "40.000"
+    filas = (
+        await sesion.execute(
+            sa.text(
+                "select count(*), sum(cantidad * direccion),"
+                " string_agg(tipo || ':' || stock_resultante::text, ',' order by ocurrido_en)"
+                " from movimientos where producto_id = :p"
+            ),
+            {"p": p["id"]},
+        )
+    ).one()
+    assert stock.json()["cantidad"] == "40.000", (stock.json(), filas[0], filas[1], filas[2])
     historial = await cliente.get(
         f"/api/v1/productos/{p['id']}/movimientos", params={"limit": 100}, headers=auth
     )

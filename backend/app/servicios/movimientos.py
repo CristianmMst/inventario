@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ContextoNegocio
@@ -149,6 +150,10 @@ async def aplicar_movimiento(
         origen=origen,
         autor_tipo=contexto.autor.tipo,
         autor_id=contexto.autor.id,
+        # `now()` es la hora de inicio de la transacción: una que esperó al bloqueo quedaría
+        # "antes" que la que se aplicó primero. clock_timestamp() ya con el bloqueo tomado
+        # deja el historial en el orden real de aplicación (RF-INV-012).
+        ocurrido_en=sa.func.clock_timestamp(),
     )
     RepositorioMovimientos(sesion).guardar(movimiento)
     await sesion.flush()

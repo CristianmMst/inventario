@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modelos.catalogo import Categoria, CodigoBarras, Producto, UnidadMedida
+from app.modelos.inventario import StockProducto
 
 
 class RepositorioUnidades:
@@ -83,12 +84,16 @@ class RepositorioProductos:
         *,
         categoria_id: uuid.UUID | None,
         estado: str | None,
+        condicion_stock: str | None = None,
         limite: int,
         despues_de: tuple[str, uuid.UUID] | None,
     ) -> list[Producto]:
-        """RF-CAT-014: filtros por categoría y estado; orden por nombre e id (cursor estable)."""
+        """RF-CAT-014: filtros por categoría, estado y condición de stock; orden por nombre e
+        id (cursor estable). El stock sale de la instantánea; sin fila, es cero."""
+        stock = sa.func.coalesce(StockProducto.cantidad, 0)
         consulta = (
             sa.select(Producto)
+            .outerjoin(StockProducto, StockProducto.producto_id == Producto.id)
             .where(Producto.negocio_id == negocio_id)
             .options(
                 selectinload(Producto.categoria),
@@ -103,6 +108,14 @@ class RepositorioProductos:
             consulta = consulta.where(Producto.categoria_id == categoria_id)
         if estado is not None:
             consulta = consulta.where(Producto.estado == estado)
+        if condicion_stock == "agotado":
+            consulta = consulta.where(stock <= 0)
+        elif condicion_stock == "bajo_minimo":
+            consulta = consulta.where(
+                Producto.stock_minimo.is_not(None), stock <= Producto.stock_minimo
+            )
+        elif condicion_stock == "con_stock":
+            consulta = consulta.where(stock > 0)
         if despues_de is not None:
             nombre, pid = despues_de
             consulta = consulta.where(

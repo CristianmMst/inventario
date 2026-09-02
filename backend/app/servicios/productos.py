@@ -327,8 +327,10 @@ async def listar(
     *,
     categoria_id: uuid.UUID | None,
     estado: str,
+    condicion_stock: str | None = None,
 ) -> Pagina[ProductoSalida]:
-    """RF-CAT-014. `estado` es activo (por defecto), archivado o todos."""
+    """RF-CAT-014. `estado` es activo (por defecto), archivado o todos; `condicion_stock` es
+    bajo_minimo, agotado o con_stock."""
     despues = None
     if pagina.cursor:
         c = decodificar_cursor(pagina.cursor)
@@ -338,6 +340,7 @@ async def listar(
             negocio_id,
             categoria_id=categoria_id,
             estado=None if estado == "todos" else estado,
+            condicion_stock=condicion_stock,
             limite=pagina.limit + 1,
             despues_de=despues,
         )
