@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modelos.compras import OrdenCompra, OrdenCompraLinea, Proveedor, Recepcion, RecepcionLinea
+from app.modelos.facturas import Factura
 from app.modelos.identidad import Negocio
 from app.modelos.inventario import Movimiento
 
@@ -65,7 +66,12 @@ class RepositorioProveedores:
                 sa.select(sa.literal(True)).where(Recepcion.proveedor_id == proveedor_id).limit(1)
             )
         ).scalar_one_or_none()
-        return hay_ordenes is True or hay_recepciones is True
+        hay_facturas = (
+            await self._s.execute(
+                sa.select(sa.literal(True)).where(Factura.proveedor_id == proveedor_id).limit(1)
+            )
+        ).scalar_one_or_none()
+        return hay_ordenes is True or hay_recepciones is True or hay_facturas is True
 
 
 class RepositorioOrdenes:

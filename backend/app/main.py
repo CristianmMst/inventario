@@ -7,6 +7,7 @@ from app.api.v1 import (
     categorias,
     codigos_barras,
     conteos,
+    facturas,
     imagenes,
     motivos,
     movimientos,
@@ -50,4 +51,5 @@ api_v1.include_router(proveedores.router)
 api_v1.include_router(ordenes_compra.router)
 api_v1.include_router(recepciones.router)
 api_v1.include_router(imagenes.router)
+api_v1.include_router(facturas.router)
 app.include_router(api_v1)
