@@ -117,6 +117,20 @@ data class ProductoNuevoDto(
     @SerialName("codigos_barras") val codigosBarras: List<String> = emptyList(),
 )
 
+@Serializable
+data class ProductoEdicionDto(
+    val nombre: String? = null,
+    @SerialName("unidad_codigo") val unidadCodigo: String? = null,
+    val sku: String? = null,
+    @SerialName("categoria_id") val categoriaId: String? = null,
+    @SerialName("costo_actual") val costoActual: DineroDto? = null,
+    @SerialName("precio_venta") val precioVenta: DineroDto? = null,
+    @SerialName("stock_minimo") val stockMinimo: String? = null,
+)
+
+@Serializable
+data class CategoriaNuevaDto(val nombre: String)
+
 // --- Movimientos -----------------------------------------------------------------------------
 
 @Serializable

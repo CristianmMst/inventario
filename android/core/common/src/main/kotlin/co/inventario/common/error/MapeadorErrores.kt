@@ -115,4 +115,14 @@ object MapeadorErrores {
 
     fun error(codigo: String, detalles: Map<String, String> = emptyMap(), requestId: String? = null): ErrorApp =
         ErrorApp(codigo = codigo, mensaje = mensajePara(codigo, detalles), requestId = requestId, detalles = detalles)
+
+    /**
+     * Los textos de red hablan de "no se guardó" porque están pensados para escrituras (plan.md
+     * §8.5). En una lectura (buscar, abrir una ficha) no hay nada que guardar: se dice solo eso.
+     */
+    fun paraLectura(error: ErrorApp): ErrorApp = when (error.codigo) {
+        SIN_RED -> error.copy(mensaje = "Sin conexión con el servidor. Revisa la red e inténtalo de nuevo.")
+        TIEMPO_AGOTADO -> error.copy(mensaje = "El servidor tardó demasiado en responder. Inténtalo de nuevo.")
+        else -> error
+    }
 }

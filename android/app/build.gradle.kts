@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:escaneo"))
+    implementation(project(":feature:catalogo"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

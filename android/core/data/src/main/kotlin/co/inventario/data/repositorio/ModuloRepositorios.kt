@@ -10,4 +10,7 @@ import dagger.hilt.components.SingletonComponent
 abstract class ModuloRepositorios {
     @Binds
     abstract fun sesion(impl: RepositorioSesionApi): RepositorioSesion
+
+    @Binds
+    abstract fun catalogo(impl: RepositorioCatalogoApi): RepositorioCatalogo
 }

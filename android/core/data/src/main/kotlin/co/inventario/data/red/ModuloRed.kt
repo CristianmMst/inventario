@@ -53,8 +53,10 @@ object ModuloRed {
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
-            // RNF-06: el reintento de escrituras lo gobierna la bandeja de salida, no OkHttp.
-            .retryOnConnectionFailure(false)
+            // Una conexión keep-alive que el servidor ya cerró se detecta al escribir ("unexpected end
+            // of stream"); OkHttp la reabre y reenvía. Es seguro para las escrituras porque todas
+            // llevan Idempotency-Key (RNF-06): el reintento de negocio lo gobierna la bandeja de salida.
+            .retryOnConnectionFailure(true)
         if (configuracion.registrarTrafico) {
             base.addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
         }

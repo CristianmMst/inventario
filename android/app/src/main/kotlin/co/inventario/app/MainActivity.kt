@@ -23,7 +23,11 @@ class MainActivity : ComponentActivity() {
         val haySesion = almacenSesion.tokens() != null
         setContent {
             InventarioTema {
-                NavegacionInventario(haySesion = haySesion, sesionCerrada = sesionEventos.cerradas)
+                NavegacionInventario(
+                    haySesion = haySesion,
+                    monedaBase = { almacenSesion.negocio()?.monedaBase ?: "COP" },
+                    sesionCerrada = sesionEventos.cerradas,
+                )
             }
         }
     }

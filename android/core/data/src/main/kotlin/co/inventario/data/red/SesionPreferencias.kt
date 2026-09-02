@@ -25,6 +25,19 @@ class SesionPreferencias(contexto: Context) : AlmacenSesion {
         }
     }
 
+    override fun negocio(): DatosNegocio? {
+        val nombre = prefs.getString(CLAVE_NEGOCIO, null) ?: return null
+        val moneda = prefs.getString(CLAVE_MONEDA, null) ?: return null
+        return DatosNegocio(nombre, moneda)
+    }
+
+    override fun guardarNegocio(negocio: DatosNegocio) {
+        prefs.edit(commit = true) {
+            putString(CLAVE_NEGOCIO, negocio.nombre)
+            putString(CLAVE_MONEDA, negocio.monedaBase)
+        }
+    }
+
     override fun borrar() {
         prefs.edit(commit = true) { clear() }
     }
@@ -32,5 +45,7 @@ class SesionPreferencias(contexto: Context) : AlmacenSesion {
     private companion object {
         const val CLAVE_ACCESO = "token_acceso"
         const val CLAVE_RENOVACION = "token_renovacion"
+        const val CLAVE_NEGOCIO = "negocio_nombre"
+        const val CLAVE_MONEDA = "negocio_moneda"
     }
 }

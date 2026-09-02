@@ -4,6 +4,7 @@ import co.inventario.data.red.dto.CategoriaDto
 import co.inventario.data.red.dto.DineroDto
 import co.inventario.data.red.dto.MotivoDto
 import co.inventario.data.red.dto.MovimientoDto
+import co.inventario.data.red.dto.PaginaDto
 import co.inventario.data.red.dto.ProductoDto
 import co.inventario.data.red.dto.UnidadMedidaDto
 import co.inventario.domain.modelo.Autor
@@ -15,6 +16,7 @@ import co.inventario.domain.modelo.Moneda
 import co.inventario.domain.modelo.Motivo
 import co.inventario.domain.modelo.Movimiento
 import co.inventario.domain.modelo.Origen
+import co.inventario.domain.modelo.Pagina
 import co.inventario.domain.modelo.Producto
 import co.inventario.domain.modelo.TipoMovimiento
 import co.inventario.domain.modelo.TipoUnidad
@@ -71,3 +73,5 @@ fun MovimientoDto.aDominio(): Movimiento =
     )
 
 fun MotivoDto.aDominio(): Motivo = Motivo(codigo, TipoMovimiento.desde(tipoMovimiento), etiqueta, exigeNota)
+
+fun <T, R> PaginaDto<T>.aDominio(transformar: (T) -> R): Pagina<R> = Pagina(datos.map(transformar), cursorSiguiente, tieneMas)

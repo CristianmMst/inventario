@@ -2,6 +2,7 @@ package co.inventario.data.repositorio
 
 import co.inventario.common.Resultado
 import co.inventario.data.red.AlmacenSesion
+import co.inventario.data.red.DatosNegocio
 import co.inventario.data.red.InventarioApi
 import co.inventario.data.red.Tokens
 import co.inventario.data.red.dto.LoginDto
@@ -49,6 +50,7 @@ class RepositorioSesionApi @Inject constructor(
 
     private fun guardar(sesion: SesionDto): SesionIniciada {
         almacen.guardar(Tokens(sesion.tokenAcceso, sesion.tokenRenovacion))
+        almacen.guardarNegocio(DatosNegocio(sesion.negocio.nombre, sesion.negocio.monedaBase))
         return SesionIniciada(sesion.usuario.nombre, sesion.negocio.nombre, sesion.negocio.monedaBase)
     }
 }

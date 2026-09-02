@@ -1,9 +1,17 @@
 package co.inventario.data.red
 
 import co.inventario.data.red.dto.AnulacionDto
+import co.inventario.data.red.dto.CategoriaDto
+import co.inventario.data.red.dto.CategoriaNuevaDto
 import co.inventario.data.red.dto.ConteoEntradaDto
 import co.inventario.data.red.dto.ConteoSalidaDto
 import co.inventario.data.red.dto.LoginDto
+import co.inventario.data.red.dto.ProductoEdicionDto
+import co.inventario.data.red.dto.UnidadMedidaDto
+import okhttp3.MultipartBody
+import retrofit2.http.Multipart
+import retrofit2.http.PUT
+import retrofit2.http.Part
 import co.inventario.data.red.dto.MotivoDto
 import co.inventario.data.red.dto.MovimientoDto
 import co.inventario.data.red.dto.MovimientoNuevoDto
@@ -67,10 +75,29 @@ interface InventarioApi {
     suspend fun crearProducto(@Body datos: ProductoNuevoDto): Response<ProductoDto>
 
     @PATCH("api/v1/productos/{id}")
-    suspend fun editarProducto(@Path("id") id: String, @Body datos: Map<String, String?>): Response<ProductoDto>
+    suspend fun editarProducto(@Path("id") id: String, @Body datos: ProductoEdicionDto): Response<ProductoDto>
+
+    @POST("api/v1/productos/{id}/archivar")
+    suspend fun archivarProducto(@Path("id") id: String): Response<ProductoDto>
+
+    @POST("api/v1/productos/{id}/desarchivar")
+    suspend fun desarchivarProducto(@Path("id") id: String): Response<ProductoDto>
+
+    @Multipart
+    @PUT("api/v1/productos/{id}/imagen")
+    suspend fun subirImagenProducto(@Path("id") id: String, @Part archivo: MultipartBody.Part): Response<ProductoDto>
 
     @GET("api/v1/productos/{id}/stock")
     suspend fun stock(@Path("id") id: String): Response<StockDto>
+
+    @GET("api/v1/categorias")
+    suspend fun categorias(@Query("limit") limite: Int = 200): Response<PaginaDto<CategoriaDto>>
+
+    @POST("api/v1/categorias")
+    suspend fun crearCategoria(@Body datos: CategoriaNuevaDto): Response<CategoriaDto>
+
+    @GET("api/v1/unidades-medida")
+    suspend fun unidades(): Response<PaginaDto<UnidadMedidaDto>>
 
     // Movimientos (RF-INV)
     @GET("api/v1/motivos-movimiento")

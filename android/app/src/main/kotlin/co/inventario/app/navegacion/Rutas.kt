@@ -13,9 +13,12 @@ sealed interface Ruta {
     @Serializable data object Registro : Ruta
     @Serializable data object Inicio : Ruta
     @Serializable data object Escaneo : Ruta
+    @Serializable data class ResolverCodigo(val codigo: String) : Ruta
     @Serializable data class Producto(val productoId: String) : Ruta
     @Serializable data class AltaProducto(val codigoBarras: String? = null) : Ruta
+    @Serializable data class EditarProducto(val productoId: String) : Ruta
     @Serializable data class Movimiento(val productoId: String, val tipo: String) : Ruta
+    @Serializable data class Conteo(val productoId: String) : Ruta
     @Serializable data class Historial(val productoId: String) : Ruta
     @Serializable data object Busqueda : Ruta
 }
