@@ -12,6 +12,7 @@ from app.dominio.tipos import Cantidad, Dinero, Moneda
 from app.esquemas.catalogo import DineroEntrada, DineroSalida
 from app.esquemas.compras import (
     CancelacionEntrada,
+    CierreFaltanteEntrada,
     LineaOrdenEntrada,
     LineaOrdenSalida,
     OrdenEdicion,
@@ -249,15 +250,32 @@ async def cancelar(
     cierra con faltante (RF-COM-008)."""
     async with sesion.begin():
         orden = await _cargar(sesion, negocio_id, orden_id)
-        if orden.estado not in ("borrador", "emitida"):
-            raise _transicion_invalida(orden, "cancelar")
         if await RepositorioOrdenes(sesion).tiene_recepciones(orden.id):
             raise err.Conflicto(
                 "ORDEN_CON_RECEPCIONES",
                 f"La orden {orden.numero} ya tiene recepciones; ciérrala con faltante.",
                 {"orden_id": str(orden.id), "accion_sugerida": "cerrar-con-faltante"},
             )
+        if orden.estado not in ("borrador", "emitida"):
+            raise _transicion_invalida(orden, "cancelar")
         orden.estado = "cancelada"
+        orden.motivo_cierre = datos.motivo
+        orden.cerrada_en = datetime.now(UTC)
+        await sesion.flush()
+    async with sesion.begin():
+        return await _salida_de(sesion, negocio_id, orden_id)
+
+
+async def cerrar_con_faltante(
+    sesion: AsyncSession, negocio_id: uuid.UUID, orden_id: uuid.UUID, datos: CierreFaltanteEntrada
+) -> OrdenSalida:
+    """RF-COM-008 / RN-12: una orden parcialmente recibida se cierra con faltante indicando el
+    motivo, y desde entonces no admite más recepciones."""
+    async with sesion.begin():
+        orden = await _cargar(sesion, negocio_id, orden_id)
+        if orden.estado != "parcialmente_recibida":
+            raise _transicion_invalida(orden, "cerrar con faltante")
+        orden.estado = "cerrada_con_faltante"
         orden.motivo_cierre = datos.motivo
         orden.cerrada_en = datetime.now(UTC)
         await sesion.flush()

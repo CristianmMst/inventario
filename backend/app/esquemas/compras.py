@@ -183,3 +183,9 @@ class RecepcionSalida(BaseModel):
     total_base: DineroSalida | None
     movimientos_generados: list[uuid.UUID]
     created_at: datetime
+
+
+class CierreFaltanteEntrada(BaseModel):
+    """RF-COM-008: cerrar con faltante indica el motivo."""
+
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import Contexto, SesionDb, paginacion
 from app.esquemas.compras import (
     CancelacionEntrada,
+    CierreFaltanteEntrada,
     EstadoOrden,
     OrdenEdicion,
     OrdenNueva,
@@ -72,3 +73,12 @@ async def cancelar(
     """Cancela una orden sin recepciones indicando el motivo (RF-COM-010). Con recepciones
     responde 409 y sugiere cerrar con faltante."""
     return await servicio.cancelar(sesion, contexto.negocio_id, orden_id, datos)
+
+
+@router.post("/{orden_id}/cerrar-con-faltante", response_model=OrdenSalida)
+async def cerrar_con_faltante(
+    orden_id: uuid.UUID, datos: CierreFaltanteEntrada, sesion: SesionDb, contexto: Contexto
+) -> OrdenSalida:
+    """Cierra una orden parcialmente recibida indicando el motivo del faltante; ya no admite
+    recepciones (RF-COM-008)."""
+    return await servicio.cerrar_con_faltante(sesion, contexto.negocio_id, orden_id, datos)

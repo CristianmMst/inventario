@@ -35,6 +35,7 @@ from app.esquemas.inventario import (
 )
 from app.infra.paginacion import Pagina, ParametrosPagina, decodificar_cursor, paginar
 from app.modelos import catalogo as mc
+from app.modelos.compras import Recepcion
 from app.modelos.inventario import Movimiento
 from app.repositorios.catalogo import RepositorioProductos
 from app.repositorios.movimientos import RepositorioMovimientos
@@ -278,6 +279,14 @@ async def anular(
                 "MOVIMIENTO_YA_ANULADO",
                 "Ese movimiento ya fue anulado.",
                 {"movimiento_id": str(original.id)},
+            )
+        if original.recepcion_id is not None:
+            # RF-COM-012: la recepción confirmada no se edita; anular sus movimientos la
+            # marca corregida sin borrarla.
+            await sesion.execute(
+                sa.update(Recepcion)
+                .where(Recepcion.id == original.recepcion_id, Recepcion.estado == "confirmada")
+                .values(estado="corregida")
             )
         return a_salida(contra)
 
