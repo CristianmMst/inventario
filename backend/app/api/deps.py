@@ -12,8 +12,11 @@ from app.dominio import errores as err
 from app.infra import seguridad
 from app.infra.db import sesion as sesion_db
 from app.infra.paginacion import LIMITE_MAXIMO, LIMITE_POR_DEFECTO, ParametrosPagina
+from app.repositorios.api_keys import RepositorioApiKeys
 
 SesionDb = Annotated[AsyncSession, Depends(sesion_db)]
+
+PREFIJO_API_KEY = "inv"
 
 
 def paginacion(
@@ -38,25 +41,57 @@ class ContextoNegocio:
     autor: Autor
 
 
+def _invalida() -> err.NoAutenticado:
+    return err.NoAutenticado(
+        "CREDENCIAL_INVALIDA", "La credencial no es válida o caducó. Vuelve a iniciar sesión."
+    )
+
+
+def _contexto_desde_jwt(authorization: str) -> ContextoNegocio:
+    esquema, _, token = authorization.partition(" ")
+    if esquema.lower() != "bearer" or not token:
+        raise _invalida()
+    try:
+        carga = seguridad.decodificar_token_acceso(token)
+    except jwt.PyJWTError as e:
+        raise _invalida() from e
+    return ContextoNegocio(
+        negocio_id=uuid.UUID(carga["biz"]),
+        autor=Autor(tipo="usuario", id=uuid.UUID(carga["sub"])),
+    )
+
+
+async def _contexto_desde_api_key(sesion: AsyncSession, clave: str) -> ContextoNegocio:
+    """`inv_<prefijo8>_<secreto>`: el prefijo localiza la fila, el secreto se verifica con
+    Argon2id. Ningún fallo revela si el prefijo existe (RNF-12)."""
+    partes = clave.split("_", 2)
+    if len(partes) != 3 or partes[0] != PREFIJO_API_KEY or len(partes[1]) != 8:
+        raise _invalida()
+    repo = RepositorioApiKeys(sesion)
+    async with sesion.begin():
+        fila = await repo.por_prefijo(partes[1])
+        if (
+            fila is None
+            or fila.revocado_en is not None
+            or not seguridad.verificar_secreto(partes[2], fila.secreto_hash)
+        ):
+            raise _invalida()
+        await repo.marcar_uso(fila.id)
+        return ContextoNegocio(negocio_id=fila.negocio_id, autor=Autor(tipo="servicio", id=fila.id))
+
+
 async def contexto_actual(
+    sesion: SesionDb,
     authorization: Annotated[str | None, Header()] = None,
+    x_api_key: Annotated[str | None, Header()] = None,
 ) -> ContextoNegocio:
-    """Resuelve la credencial de la petición. Sin credencial: 401 CREDENCIAL_REQUERIDA;
-    credencial inválida o caducada: 401 CREDENCIAL_INVALIDA."""
+    """Resuelve la credencial de la petición: `Authorization: Bearer` (usuario) o `X-API-Key`
+    (servicio). Ambas autorizan lo mismo dentro de su negocio (RF-AUT-005, RF-INT-008).
+    Sin credencial: 401 CREDENCIAL_REQUERIDA; inválida o caducada: 401 CREDENCIAL_INVALIDA."""
     if authorization:
-        esquema, _, token = authorization.partition(" ")
-        if esquema.lower() != "bearer" or not token:
-            raise err.NoAutenticado("CREDENCIAL_INVALIDA", "La credencial no es válida.")
-        try:
-            carga = seguridad.decodificar_token_acceso(token)
-        except jwt.PyJWTError as e:
-            raise err.NoAutenticado(
-                "CREDENCIAL_INVALIDA", "La sesión no es válida o caducó. Vuelve a iniciar sesión."
-            ) from e
-        return ContextoNegocio(
-            negocio_id=uuid.UUID(carga["biz"]),
-            autor=Autor(tipo="usuario", id=uuid.UUID(carga["sub"])),
-        )
+        return _contexto_desde_jwt(authorization)
+    if x_api_key:
+        return await _contexto_desde_api_key(sesion, x_api_key)
     raise err.NoAutenticado("CREDENCIAL_REQUERIDA", "Debes iniciar sesión.")
 
 

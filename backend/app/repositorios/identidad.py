@@ -65,3 +65,8 @@ class RepositorioIdentidad:
             .where(RefreshToken.usuario_id == usuario_id, RefreshToken.revocado_en.is_(None))
             .values(revocado_en=sa.func.now())
         )
+
+    async def negocio_por_id(self, negocio_id: uuid.UUID) -> Negocio:
+        return (
+            await self._s.execute(sa.select(Negocio).where(Negocio.id == negocio_id))
+        ).scalar_one()
