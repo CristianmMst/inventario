@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.modelos.compras import Recepcion
 from app.modelos.facturas import Factura, FacturaImagen, FacturaRecepcion
 
 
@@ -16,7 +17,9 @@ class RepositorioFacturas:
     def _cargada(self, consulta: sa.Select[tuple[Factura]]) -> sa.Select[tuple[Factura]]:
         return consulta.options(
             selectinload(Factura.proveedor),
-            selectinload(Factura.recepciones).selectinload(FacturaRecepcion.recepcion),
+            selectinload(Factura.recepciones)
+            .selectinload(FacturaRecepcion.recepcion)
+            .selectinload(Recepcion.lineas),
             selectinload(Factura.imagenes).selectinload(FacturaImagen.imagen),
         ).execution_options(populate_existing=True)
 

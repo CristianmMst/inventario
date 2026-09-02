@@ -2,8 +2,8 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
-from starlette.responses import JSONResponse
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
+from starlette.responses import JSONResponse, Response
 
 from app.api.deps import Contexto, SesionDb, paginacion
 from app.esquemas.facturas import (
@@ -18,6 +18,7 @@ from app.esquemas.facturas import (
 )
 from app.infra.idempotencia import ClaveIdempotencia, ejecutar_idempotente
 from app.infra.paginacion import ParametrosPagina
+from app.servicios import exportacion
 from app.servicios import facturas as servicio
 
 router = APIRouter(prefix="/facturas", tags=["facturas"])
@@ -76,6 +77,33 @@ async def crear(
     )
 
 
+@router.get(
+    "/exportacion",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/zip": {}},
+            "description": "ZIP con facturas.csv y las imágenes del período",
+        }
+    },
+)
+async def exportar(
+    desde: Annotated[date, Query(description="Fecha de emisión inicial, inclusive")],
+    hasta: Annotated[date, Query(description="Fecha de emisión final, inclusive")],
+    sesion: SesionDb,
+    contexto: Contexto,
+) -> Response:
+    """Exporta las facturas del rango como un ZIP autocontenido: CSV con todos los datos e
+    imágenes nombradas AAAA-MM-DD_proveedor_numero.jpg (RF-FAC-007). Sin caducidad."""
+    contenido = await exportacion.exportar_facturas(sesion, contexto.negocio_id, desde, hasta)
+    nombre = f"facturas_{desde.isoformat()}_{hasta.isoformat()}.zip"
+    return Response(
+        content=contenido,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/{factura_id}", response_model=FacturaSalida)
 async def ficha(factura_id: uuid.UUID, sesion: SesionDb, contexto: Contexto) -> FacturaSalida:
     return await servicio.obtener(sesion, contexto.negocio_id, factura_id)
@@ -112,3 +140,24 @@ async def vincular_recepciones(
     """Sustituye las recepciones vinculadas: del mismo proveedor, confirmadas, y cada una en una
     sola factura (RF-FAC-006)."""
     return await servicio.vincular_recepciones(sesion, contexto.negocio_id, factura_id, datos)
+
+
+@router.post(
+    "/{factura_id}/imagenes", status_code=status.HTTP_201_CREATED, response_model=FacturaSalida
+)
+async def adjuntar_imagen(
+    factura_id: uuid.UUID,
+    sesion: SesionDb,
+    contexto: Contexto,
+    archivo: Annotated[UploadFile, File(description="JPEG, PNG o WebP; ≤ 1,5 MB y ≤ 2048 px")],
+) -> FacturaSalida:
+    """Adjunta una imagen del documento (RF-FAC-005). Varias por factura, ordenadas."""
+    contenido = await archivo.read(2 * 1024 * 1024 + 1)
+    return await servicio.adjuntar_imagen(sesion, contexto.negocio_id, factura_id, contenido)
+
+
+@router.delete("/{factura_id}/imagenes/{imagen_id}", response_model=FacturaSalida)
+async def quitar_imagen(
+    factura_id: uuid.UUID, imagen_id: uuid.UUID, sesion: SesionDb, contexto: Contexto
+) -> FacturaSalida:
+    return await servicio.quitar_imagen(sesion, contexto.negocio_id, factura_id, imagen_id)

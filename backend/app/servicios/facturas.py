@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio import errores as err
+from app.dominio.imagenes import TipoImagen
 from app.dominio.tipos import Dinero, Moneda
 from app.esquemas.catalogo import DineroEntrada, DineroSalida
 from app.esquemas.compras import ProveedorBreve
@@ -22,11 +23,13 @@ from app.esquemas.facturas import (
     RecepcionesVinculacion,
 )
 from app.infra.paginacion import ParametrosPagina, decodificar_cursor, paginar
-from app.modelos.facturas import Factura, FacturaRecepcion
+from app.modelos.facturas import Factura, FacturaImagen, FacturaRecepcion
 from app.repositorios.compras import RepositorioRecepciones
 from app.repositorios.facturas import RepositorioFacturas
 from app.repositorios.identidad import RepositorioIdentidad
 from app.servicios.imagenes import a_salida as imagen_salida
+from app.servicios.imagenes import borrar as borrar_imagen
+from app.servicios.imagenes import guardar_nueva as guardar_imagen
 from app.servicios.proveedores import proveedor_seleccionable
 
 
@@ -202,6 +205,8 @@ async def crear(sesion: AsyncSession, negocio_id: uuid.UUID, datos: FacturaNueva
             tasa_cambio=tasa,
             total_base=(total * tasa).quantize(Decimal("0.0001")),
             notas=datos.notas,
+            recepciones=[],
+            imagenes=[],
         )
         repo.guardar(factura)
         try:
@@ -350,3 +355,34 @@ async def listar(
         total_filtro=_dinero(total.quantize(Decimal("0.0001")), moneda_base),
         cantidad_filtro=cantidad,
     )
+
+
+async def adjuntar_imagen(
+    sesion: AsyncSession, negocio_id: uuid.UUID, factura_id: uuid.UUID, contenido: bytes
+) -> FacturaSalida:
+    """RF-FAC-005: una o varias imágenes por factura, en orden de llegada; límites de factura
+    (RNF-05) verificados en el servidor."""
+    async with sesion.begin():
+        factura = await _cargar(sesion, negocio_id, factura_id)
+        imagen = await guardar_imagen(sesion, negocio_id, contenido, TipoImagen.FACTURA)
+        siguiente = max((fi.orden for fi in factura.imagenes), default=0) + 1
+        factura.imagenes.append(FacturaImagen(imagen_id=imagen.id, orden=siguiente))
+        await sesion.flush()
+    async with sesion.begin():
+        return await _salida_de(sesion, negocio_id, factura_id)
+
+
+async def quitar_imagen(
+    sesion: AsyncSession, negocio_id: uuid.UUID, factura_id: uuid.UUID, imagen_id: uuid.UUID
+) -> FacturaSalida:
+    async with sesion.begin():
+        factura = await _cargar(sesion, negocio_id, factura_id)
+        adjunto = next((fi for fi in factura.imagenes if fi.imagen_id == imagen_id), None)
+        if adjunto is None:
+            raise err.NoEncontrado("IMAGEN_NO_ENCONTRADA", "Esa imagen no está en la factura.")
+        imagen = adjunto.imagen
+        factura.imagenes.remove(adjunto)
+        await sesion.flush()
+        await borrar_imagen(sesion, imagen)
+    async with sesion.begin():
+        return await _salida_de(sesion, negocio_id, factura_id)
