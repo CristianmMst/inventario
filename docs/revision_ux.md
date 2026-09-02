@@ -1,8 +1,8 @@
 # Revisión de operación con una mano, legibilidad y arranque (T-100)
 
-Cierre de `RNF-08`, `RNF-09` y `RNF-10` al 2026-09-02. Lo que se pudo comprobar con tests o en
-el emulador queda marcado; lo que exige un teléfono real de gama media queda listado con su
-procedimiento, sin darse por hecho.
+Cierre de `RNF-08`, `RNF-09` y `RNF-10` al 2026-09-02, con medidas tomadas en un **Galaxy A21s
+real** (gama media) además del emulador. Lo verificado lleva su cifra; lo que todavía necesita
+una mano humana está listado al final, sin darse por hecho.
 
 ## Lo que garantiza el código (verificado)
 
@@ -23,21 +23,46 @@ procedimiento, sin darse por hecho.
 - Código tecleado desconocido → alta precargada → producto creado → ficha.
 - Menú → proveedores → nuevo proveedor → recepción directa (pantalla y buscador de productos).
 
-## Pendiente de teléfono real de gama media (no se da por hecho)
+## Medido en teléfono real (Galaxy A21s, LineageOS Android 15, 720x1600 a 280 dpi)
 
-El emulador corre con `swiftshader` (GPU por software) y no representa a un Android 8 de gama
-media, así que estos tiempos **no se han medido** todavía:
+Gama media de verdad, sobre Wi-Fi contra el backend en la LAN (`-PbackendUrl=http://IP:8000/`).
+Las cifras de arranque y cámara se toman con la variante **`medicion`** (igual que release: no
+depurable, con R8), porque la de depuración no representa lo que usa nadie: en ella el mismo
+arranque tarda 4,9 s.
 
-| Medición | Umbral | Procedimiento |
-|---|---|---|
-| Arranque hasta pantalla usable | < 3 s (RNF-10) | `adb shell am start -W -n co.inventario.app/.MainActivity` tres veces en frío (`am force-stop` antes); leer `TotalTime`. Compilación `release` con R8 para la medida definitiva. |
-| Cámara lista desde que se abre el escaneo | < 1,5 s (RNF-10) | Cronometrar desde el toque hasta el primer fotograma en `PreviewView` (logcat `CameraX` `Camera opened` → `onSurfaceRequested`). Reproducible con `adb logcat -v time` filtrando `Camera`. |
-| Lectura de etiqueta real | una lectura en 5 s (RF-CAT-008) | Apuntar a un EAN-13 impreso; debe llegar a la ficha una sola vez. |
-| Linterna | funciona (T-078) | Toque en «Linterna» con la cámara abierta. |
-| Pulgar en 6" | todo alcanzable | Sostener el teléfono con una mano y recorrer escaneo → salida → confirmar sin cambiar de mano. |
+| Medición | Umbral | Resultado | Cómo |
+|---|---|---|---|
+| Arranque en frío hasta pantalla usable | < 3 s (RNF-10) | **1,31 s** (1,31 / 1,39 / 1,31 / 1,34) | `am start -W`, cuatro arranques en frío |
+| Cámara lista desde que se abre la pantalla | < 1,5 s (RNF-10) | **1,04 s** (1,18 / 1,15 / 1,04 / 1,02) | De `Displayed` a `first frame is DONE` en logcat |
+| Código → ficha visible | < 500 ms (RNF-01) | **216 ms** | Una sola petición `por-codigo`; la ficha reutiliza el producto |
+| Búsqueda por texto sobre 20.000 productos | < 500 ms (RNF-02) | **134 ms** | `GET /productos/buscar?q=resma`, 24 KB de respuesta |
+| Registro de un movimiento | < 400 ms API (RNF-03) | **459 ms** de extremo a extremo | `POST /movimientos` desde el teléfono; la API sola da 113 ms (T-097) y la Wi-Fi añade ~300 ms |
+| Salida desde la ficha | 3 toques (RNF-08) | **2 toques** | «Registrar salida» → «Confirmar»; el stock pasó de 39 a 38 |
+| Texto ≥ 16 sp y controles al alcance | — | Se cumple | Captura de la ficha y del escaneo; los botones quedan en el tercio inferior |
+
+Latencia de red de referencia en esa Wi-Fi: 5-30 ms de ida y vuelta al router y 60-160 ms por
+petición HTTP completa desde el teléfono.
+
+## Pendiente de mano humana
+
+| Medición | Por qué sigue pendiente |
+|---|---|
+| Lectura de una etiqueta impresa (RF-CAT-008) y linterna | Hay que apuntar el teléfono a un código real: ninguna herramienta lo hace desde aquí. La cámara y el analizador ya se ven vivos en el teléfono, y el antirrebote está cubierto por `AntirreboteLecturasTest`. |
+| `java.time` en API 24-25 (RNF-14) | El teléfono disponible es API 35. El desugaring está activado en todos los módulos; falta un dispositivo o AVD de Android 7 para confirmarlo. |
+| Recorrido en pantalla de recepción, factura, reportes y ajustes | Verificados por tests de ViewModel; en el teléfono solo se recorrieron escaneo, ficha, movimientos y búsqueda. |
+| Sostener el teléfono con una mano y recorrer el flujo | Los controles están en el tercio inferior, pero quién decide si «llega el pulgar» es una persona. |
 
 ## Hallazgos y decisiones de esta revisión
 
+- **La compilación de release se caía al abrir el escaneo.** R8 borraba los registradores de
+  componentes de ML Kit, porque el manifiesto los nombra dentro de la **clave** del
+  `<meta-data>` y no en `android:name`: `BarcodeScanning.getClient()` devolvía un cliente con
+  su fábrica interna en null. Se detectó al medir en el teléfono real, nunca en depuración
+  (que no usa R8). Corregido con reglas en `app/proguard-rules.pro`.
+- **El escaneo hacía dos peticiones**: `por-codigo` y otra vez el producto al abrir la ficha,
+  441 ms de red donde RNF-01 concede 500 ms. `por-codigo` ya devuelve el producto con su
+  stock, así que la ficha lo reutiliza una sola vez; al volver de un movimiento recarga de
+  verdad, para no mostrar un stock viejo (RF-INV-003). Cubierto por test.
 - **Entrada rápida de texto**: al inyectar texto con `adb shell input text` de golpe, los
   campos cuyo estado vive en un `StateFlow` del ViewModel pierden caracteres. Una persona
   tecleando no lo nota; un lector de códigos por teclado (modo "keyboard wedge") sí lo haría.
