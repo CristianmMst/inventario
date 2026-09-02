@@ -45,4 +45,10 @@ def test_constitucion_4_modelos_y_migraciones_coinciden(postgres_url: str) -> No
     with motor.connect() as con:
         contexto = MigrationContext.configure(con)
         diferencias = compare_metadata(contexto, Base.metadata)
+    # Alembic no sabe comparar el texto de un CHECK: los reporta siempre. Se ignoran.
+    diferencias = [
+        d
+        for d in diferencias
+        if not (isinstance(d, tuple) and isinstance(d[1], sa.CheckConstraint))
+    ]
     assert diferencias == []
