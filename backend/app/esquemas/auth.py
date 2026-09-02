@@ -49,3 +49,8 @@ class Sesion(BaseModel):
     token_renovacion: str
     usuario: UsuarioSalida
     negocio: NegocioSalida
+
+
+class CambioContrasena(BaseModel):
+    password_actual: Contrasena
+    password_nueva: Contrasena

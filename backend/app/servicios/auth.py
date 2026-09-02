@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import obtener_ajustes
 from app.dominio import errores as err
 from app.esquemas.auth import (
+    CambioContrasena,
     Login,
     NegocioSalida,
     Registro,
@@ -129,3 +130,20 @@ async def cerrar_sesion(sesion: AsyncSession, datos: TokenRenovacion) -> None:
         actual = await repo.refresh_por_hash(seguridad.hash_token_opaco(datos.token_renovacion))
         if actual is not None and actual.revocado_en is None:
             actual.revocado_en = datetime.now(UTC)
+
+
+async def cambiar_contrasena(
+    sesion: AsyncSession, usuario_id: uuid.UUID, datos: CambioContrasena
+) -> None:
+    """RF-AUT-006: cambia la contraseña y revoca todos los refresh tokens del usuario."""
+    repo = RepositorioIdentidad(sesion)
+    async with sesion.begin():
+        usuario = await repo.usuario_por_id(usuario_id)
+        if usuario is None:
+            raise _credencial_invalida()
+        if not seguridad.verificar_contrasena(datos.password_actual, usuario.password_hash):
+            raise err.ValidacionInvalida(
+                "CONTRASENA_ACTUAL_INCORRECTA", "La contraseña actual no coincide."
+            )
+        usuario.password_hash = seguridad.hash_contrasena(datos.password_nueva)
+        await repo.revocar_refresh_de_usuario(usuario.id)

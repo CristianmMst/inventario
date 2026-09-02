@@ -1,15 +1,10 @@
-from typing import Annotated
+from fastapi import APIRouter, status
 
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.esquemas.auth import Login, Registro, Sesion, TokenRenovacion
-from app.infra.db import sesion as sesion_db
+from app.api.deps import Contexto, SesionDb
+from app.esquemas.auth import CambioContrasena, Login, Registro, Sesion, TokenRenovacion
 from app.servicios import auth as servicio
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-SesionDb = Annotated[AsyncSession, Depends(sesion_db)]
 
 
 @router.post("/registro", status_code=status.HTTP_201_CREATED, response_model=Sesion)
@@ -34,3 +29,9 @@ async def refresh(datos: TokenRenovacion, sesion: SesionDb) -> Sesion:
 async def logout(datos: TokenRenovacion, sesion: SesionDb) -> None:
     """Revoca el token de renovación (RF-AUT-002)."""
     await servicio.cerrar_sesion(sesion, datos)
+
+
+@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+async def cambiar_password(datos: CambioContrasena, sesion: SesionDb, contexto: Contexto) -> None:
+    """Cambia la contraseña del propio usuario y revoca sus tokens de renovación (RF-AUT-006)."""
+    await servicio.cambiar_contrasena(sesion, contexto.autor.id, datos)
