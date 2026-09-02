@@ -16,3 +16,4 @@ android/.idea/
 *.apk
 android/.kotlin/
 android/**/.kotlin/
+android/**/.gradle/
