@@ -34,7 +34,7 @@ from app.infra import db  # noqa: E402
 from app.servicios import auth  # noqa: E402
 
 EMAIL = "semilla@ejemplo.com"
-PASSWORD = "Semilla-de-referencia-2026"
+PASSWORD = "password"
 SEMILLA_ALEATORIA = 20260901
 
 ADJETIVOS = [

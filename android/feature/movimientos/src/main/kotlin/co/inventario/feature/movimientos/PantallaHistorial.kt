@@ -1,37 +1,43 @@
 package co.inventario.feature.movimientos
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import co.inventario.designsystem.componentes.BotonSecundario
+import co.inventario.designsystem.componentes.BotonTexto
 import co.inventario.designsystem.componentes.CampoTexto
-import co.inventario.designsystem.componentes.MensajeError
+import co.inventario.designsystem.componentes.DialogoConfirmacion
+import co.inventario.designsystem.componentes.EsqueletoLista
+import co.inventario.designsystem.componentes.EstadoError
+import co.inventario.designsystem.componentes.EstadoVacio
+import co.inventario.designsystem.componentes.FilaMovimiento
+import co.inventario.designsystem.componentes.PantallaInventario
+import co.inventario.designsystem.componentes.SentidoMovimiento
 import co.inventario.designsystem.tema.Dimensiones
+import co.inventario.designsystem.tema.Iconos
 import co.inventario.domain.modelo.Movimiento
 import co.inventario.domain.modelo.TipoMovimiento
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** T-087: historial (RF-INV-012) y anulación con motivo (RF-INV-008). No hay forma de editar. */
+/**
+ * T-087: historial (RF-INV-012) y anulación con motivo (RF-INV-008). No hay forma de editar ni
+ * de borrar, y no la habrá: un movimiento registrado es inmutable (RF-INV-007). Lo único que
+ * cabe es anularlo con un contramovimiento, y eso se dice en el diálogo.
+ */
 @Composable
 fun PantallaHistorial(
     productoId: String,
@@ -41,60 +47,103 @@ fun PantallaHistorial(
     val estado by vm.estado.collectAsStateWithLifecycle()
     val formato = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = Dimensiones.espacio), verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-        Text("Historial", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = Dimensiones.espacio))
-        MensajeError(estado.error)
-        if (estado.error != null) BotonSecundario("Reintentar", vm::recargar)
-        LazyColumn(Modifier.weight(1f)) {
-            itemsIndexed(estado.movimientos, key = { _, m -> m.id }) { indice, m ->
-                if (indice >= estado.movimientos.size - 5) LaunchedEffect(indice) { vm.cargarMas() }
-                FilaMovimiento(m, formato, anulable = vm.sePuedeAnular(m), alAnular = { vm.pedirAnulacion(m.id) })
-                HorizontalDivider()
-            }
-            if (!estado.cargando && estado.movimientos.isEmpty()) {
-                item { Text("Este producto todavía no tiene movimientos.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(Dimensiones.espacio)) }
+    PantallaInventario(titulo = "Historial", alVolver = alVolver) { relleno ->
+        Column(Modifier.fillMaxSize().padding(relleno)) {
+            val error = estado.error
+            when {
+                error != null && estado.movimientos.isEmpty() ->
+                    EstadoError(error, vm::recargar, Modifier.weight(1f))
+
+                estado.cargando && estado.movimientos.isEmpty() ->
+                    EsqueletoLista(Modifier.weight(1f))
+
+                estado.movimientos.isEmpty() -> EstadoVacio(
+                    titulo = "Todavía sin movimientos",
+                    explicacion = "Cuando registres una entrada o una salida de este producto, aparecerá aquí.",
+                    icono = Iconos.historial,
+                    modifier = Modifier.weight(1f),
+                )
+
+                else -> LazyColumn(Modifier.weight(1f)) {
+                    itemsIndexed(estado.movimientos, key = { _, m -> m.id }) { indice, movimiento ->
+                        if (indice >= estado.movimientos.size - 5) {
+                            LaunchedEffect(indice) { vm.cargarMas() }
+                        }
+                        Column {
+                            FilaMovimiento(
+                                sentido = movimiento.tipo.aSentido(),
+                                titulo = etiqueta(movimiento.tipo) + if (movimiento.forzado) " · forzado" else "",
+                                detalle = detalleDe(movimiento, formato.format(movimiento.ocurridoEn)),
+                                cantidad = movimiento.cantidadConSigno(),
+                                stockResultante = movimiento.stockResultante.valor.stripTrailingZeros().toPlainString(),
+                                anulado = movimiento.anulado,
+                            )
+                            if (vm.sePuedeAnular(movimiento)) {
+                                BotonTexto(
+                                    "Anular",
+                                    { vm.pedirAnulacion(movimiento.id) },
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(start = Dimensiones.espacioCompacto),
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                    if (estado.cargando) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(Dimensiones.espacio), Alignment.Center) {
+                                Text(
+                                    "Cargando más…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
-        BotonSecundario("Volver", alVolver, Modifier.padding(bottom = Dimensiones.espacio))
     }
 
     if (estado.anulando != null) {
-        AlertDialog(
-            onDismissRequest = vm::cancelarAnulacion,
-            title = { Text("Anular movimiento") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-                    Text("Se creará un contramovimiento que deshace este. El original queda marcado como anulado; nada se borra.", style = MaterialTheme.typography.bodyLarge)
-                    CampoTexto(estado.nota, vm::cambiarNota, "Motivo de la anulación", error = estado.erroresCampo["nota"])
-                }
+        DialogoConfirmacion(
+            titulo = "Anular movimiento",
+            texto = "Se creará un contramovimiento que deshace este. El original queda marcado como anulado; " +
+                "nada se borra.",
+            textoConfirmar = "Anular",
+            alConfirmar = vm::confirmarAnulacion,
+            alCancelar = vm::cancelarAnulacion,
+            destructivo = true,
+            contenidoExtra = {
+                CampoTexto(
+                    valor = estado.nota,
+                    alCambiar = vm::cambiarNota,
+                    etiqueta = "Motivo de la anulación",
+                    error = estado.erroresCampo["nota"],
+                )
             },
-            confirmButton = { TextButton(onClick = vm::confirmarAnulacion, enabled = !estado.cargando) { Text("Anular") } },
-            dismissButton = { TextButton(onClick = vm::cancelarAnulacion) { Text("Cancelar") } },
         )
     }
 }
 
-@Composable
-private fun FilaMovimiento(m: Movimiento, formato: DateTimeFormatter, anulable: Boolean, alAnular: () -> Unit) {
-    val cantidad = m.cantidad.valor.stripTrailingZeros().toPlainString()
-    val signo = if (m.direccion < 0) "−" else "+"
-    Column(Modifier.fillMaxWidth().padding(vertical = Dimensiones.espacioCompacto), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                "${etiqueta(m.tipo)} · ${m.motivo}${if (m.forzado) " · forzado" else ""}",
-                style = MaterialTheme.typography.titleMedium,
-                textDecoration = if (m.anulado) TextDecoration.LineThrough else null,
-            )
-            Text("$signo$cantidad", style = MaterialTheme.typography.titleMedium, color = if (m.direccion < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-        }
-        Text("${formato.format(m.ocurridoEn)} · quedó ${m.stockResultante.valor.stripTrailingZeros().toPlainString()}", style = MaterialTheme.typography.bodyLarge)
-        m.nota?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
-        when {
-            m.anulado -> Text("Anulado", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
-            m.anulaMovimientoId != null -> Text("Anula un movimiento anterior", style = MaterialTheme.typography.bodyLarge)
-            anulable -> TextButton(onClick = alAnular) { Text("Anular") }
-        }
-    }
+private fun detalleDe(movimiento: Movimiento, fecha: String): String = listOfNotNull(
+    movimiento.motivo,
+    fecha,
+    movimiento.nota?.takeIf { it.isNotBlank() },
+    "Anula un movimiento anterior".takeIf { movimiento.anulaMovimientoId != null },
+).joinToString(" · ")
+
+private fun Movimiento.cantidadConSigno(): String {
+    val cantidad = this.cantidad.valor.stripTrailingZeros().toPlainString()
+    return if (direccion < 0) "−$cantidad" else "+$cantidad"
+}
+
+private fun TipoMovimiento.aSentido(): SentidoMovimiento = when (this) {
+    TipoMovimiento.ENTRADA -> SentidoMovimiento.ENTRADA
+    TipoMovimiento.SALIDA -> SentidoMovimiento.SALIDA
+    TipoMovimiento.MERMA -> SentidoMovimiento.MERMA
+    TipoMovimiento.AJUSTE -> SentidoMovimiento.AJUSTE
+    TipoMovimiento.CONTRAMOVIMIENTO -> SentidoMovimiento.ANULACION
 }
 
 private fun etiqueta(tipo: TipoMovimiento) = when (tipo) {

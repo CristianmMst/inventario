@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import co.inventario.app.navegacion.NavegacionInventario
 import co.inventario.data.red.AlmacenSesion
 import co.inventario.data.red.SesionEventos
@@ -18,6 +19,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var sesionEventos: SesionEventos
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Antes de `super`: cede el arranque del sistema a la app sin destello blanco de por
+        // medio. No retiene la pantalla (RNF-10: la app tiene que estar usable en menos de 3 s,
+        // no parecerlo).
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val haySesion = almacenSesion.tokens() != null

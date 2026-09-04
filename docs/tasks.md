@@ -219,6 +219,31 @@ pasan a tener número.
 
 ---
 
+## H11 · Rediseño de UI/UX
+
+Posterior al cierre de v1 y de alcance **puramente de presentación**: no toca ViewModels,
+repositorios ni la API. Nace de que el sistema de diseño se escribió para garantizar los
+mínimos de `RNF-08` y `RNF-09` y nada más, así que nunca hubo capa de jerarquía: el tema
+cableaba 8 de ~30 roles de Material 3 (los chips salían morados), no se dibujaba ni un icono, y
+la ficha apilaba ocho botones idénticos.
+
+| ID | Tarea | Archivos | Cubre | Verificación | Dep. | ∥ |
+|---|---|---|---|---|---|---|
+| `T-101` | Paleta Material 3 completa y colores de estado del stock | `core/designsystem/tema/Tokens.kt`, `tema/InventarioTema.kt` | `RNF-09` | `TemaTest` verifica AA en los 28 pares; ningún chip hereda el morado *baseline* | `T-100` | |
+| `T-102` | IBM Plex Sans y escala tipográfica con jerarquía | `core/designsystem/res/font/**`, `tema/Tokens.kt` | `RNF-09` | Ningún estilo baja de 16 sp; cifras tabulares en stock y cantidades | `T-101` | |
+| `T-103` | Escala de espacio, forma, elevación e iconografía | `core/designsystem/tema/Tokens.kt`, `tema/Iconos.kt` | `RNF-08` | Todo token `altura…` ≥ 48 dp, verificado por convención de nombres | `T-101` | ∥ |
+| `T-104` | Armazón de pantalla: barra superior, barra de acción anclada y aviso de bandeja | `core/designsystem/componentes/Estructura.kt` | `RNF-08`, `RNF-07` | Las acciones quedan al pie aunque el contenido desborde | `T-103` | |
+| `T-105` | Componentes de contenido: filas, píldoras, vacíos, errores, esqueletos, fechas | `core/designsystem/componentes/*.kt` | `RNF-07`, `RNF-09` | Cinco `Fila*` duplicadas se unifican; ningún error sin reintentar | `T-104` | |
+| `T-106` | Enmienda de `TemaTest`: vigila objetivos táctiles, no glifos | `core/designsystem/src/test/.../TemaTest.kt` | `RNF-08`, `RNF-09` | La regla de `sp` intacta; la de `dp` ceñida a `height`/`minHeight` más convención de nombres | `T-103` | |
+| `T-107` | Barra inferior de cuatro destinos, con «Reponer» sobre reportes existentes | `app/navegacion/*.kt` | `RF-INT-008`, `HU-03` | Cero endpoints nuevos; el escaneo sigue siendo el destino de arranque | `T-104` | |
+| `T-108` | Adopción del armazón en las 18 pantallas | `feature/**/Pantalla*.kt` | `RNF-08` | Desaparece el botón «Volver» del pie; `safeDrawingPadding` lo gestiona el `Scaffold` | `T-107` | |
+| `T-109` | Menú «Más» con secciones, iconos y cabecera del negocio | `app/navegacion/PantallaMenu.kt` | — | De ocho botones iguales a filas con significado | `T-108` | ∥ |
+| `T-110`…`T-116` | Flujo principal: escaneo con visor, ficha, movimiento, conteo, historial, catálogo, alta, auth | `feature/escaneo`, `feature/catalogo`, `feature/movimientos`, `feature/auth` | `RF-CAT-008`, `RF-INV-013`, `RNF-08` | Salida en 2 toques desde el escaneo; el conteo enseña la diferencia antes de confirmar | `T-108` | |
+| `T-117`…`T-121` | Compras, documentos y ajustes | `feature/compras`, `feature/facturas`, `feature/reportes`, `feature/ajustes` | `RF-COM-009`, `RF-FAC-004` | Borrar proveedor pide confirmación; el cuadre de la factura se ve en vivo | `T-108` | ∥ |
+| `T-122` | Icono de lanzador adaptativo, con respaldo para API 24-25 | `app/res/mipmap-*/**`, `app/res/drawable/**` | `RNF-14` | La app deja de salir con el robot por defecto, también en Android 7 | `T-101` | ∥ |
+| `T-123` | Pantalla de arranque sobre el verde de marca | `app/res/values/themes.xml`, `app/MainActivity.kt` | `RNF-10` | Arranque sin destello blanco, y sigue por debajo de 3 s | `T-122` | |
+| `T-124` | Repaso de accesibilidad y previsualizaciones de los componentes | `core/designsystem/componentes/Previsualizaciones.kt` | `RNF-09` | Todo icono accionable con `contentDescription`; títulos como encabezado | `T-121` | ∥ |
+
 ## Notas de ejecución
 
 **Cadencia.** La implementación corre **de corrido, sin pedir aprobación tarea por tarea**:

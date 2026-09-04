@@ -52,6 +52,54 @@ petición HTTP completa desde el teléfono.
 | Recorrido en pantalla de recepción, factura, reportes y ajustes | Verificados por tests de ViewModel; en el teléfono solo se recorrieron escaneo, ficha, movimientos y búsqueda. |
 | Sostener el teléfono con una mano y recorrer el flujo | Los controles están en el tercio inferior, pero quién decide si «llega el pulgar» es una persona. |
 
+## Remedición tras el rediseño de UI/UX (H11)
+
+El rediseño (`T-101`…`T-124`) toca justo lo que se midió aquí: fuente propia, pantalla de
+arranque, iconos y tarjetas. Vuelto a medir en el **mismo Galaxy A21s**, variante `medicion`
+(R8, no depurable), contra el backend en la LAN:
+
+| Medición | Umbral | Antes | Ahora | Cómo |
+|---|---|---|---|---|
+| Arranque en frío hasta pantalla usable | < 3 s (RNF-10) | 1,31 s | **1,44 s** | `am start -W`, con sesión iniciada |
+| Arranque en frío sin sesión (login) | < 3 s (RNF-10) | — | **1,56-1,64 s** | cuatro arranques en frío tras instalar |
+| Cámara lista desde que se abre la pantalla | < 1,5 s (RNF-10) | 1,04 s | **1,23 s** | de `Displayed` a `first frame is DONE` |
+| Salida desde la ficha | 3 toques (RNF-08) | 2 toques | **2 toques** | «Registrar salida» → «Confirmar»; 27 → 26 |
+| Texto ≥ 16 sp y contraste AA | — | cumple | **cumple** | `TemaTest`: 28 pares de contraste a ≥ 4,5:1 |
+
+Los ~130 ms de más son el precio de IBM Plex Sans y del arranque con marca. Queda 1,5 s de
+margen sobre el umbral. **El escaneo sigue vivo con R8**, que es donde se cayó la vez anterior:
+cámara y analizador arrancan sin excepciones en logcat.
+
+### Enmienda de `TemaTest` (T-106)
+
+El cuarto caso del test recorría con regex todo `designsystem/src/main` exigiendo que todo
+`height`, `minHeight` **o `size`** con literal en dp llegara a 48. Al introducir iconografía eso
+dejó de medir lo que dice `RNF-08`: un glifo de 20 o 24 dp no es un objetivo táctil — el
+objetivo es el `IconButton` que lo envuelve, y ese ya pasa por `areaTactilMinima`.
+
+- La regla de `sp` **se conserva intacta**: es literalmente `RNF-09`.
+- La de `dp` se ciñe a `height|minHeight`, que sí son altura de control.
+- En su lugar entra una **convención de nombres verificada**: todo token de `Dimensiones` cuyo
+  nombre empiece por `altura` o `areaTactil` debe medir ≥ 48 dp. Los grosores, glifos y espacios
+  llevan otro prefijo (`grosor…`, `icono…`, `espacio…`) precisamente para no confundirse.
+- Se añade un caso nuevo: ningún color de `Estado` ni ningún `…Contenedor` puede existir sin su
+  par en `paresDeContraste`. Antes se podía añadir un color y dejarlo sin verificar.
+
+El test cambia porque cambió lo que mide, no porque estorbara: sigue siendo la puerta de los dos
+requisitos y ahora cubre además la lista de contrastes.
+
+### Lo que el rediseño arregló de esta lista
+
+- **Formato del dinero.** Los importes se pintaban tal cual llegaban de la API:
+  «66129.2424 COP». Ahora pasan por `Formato`, con separador de miles en español y solo los
+  decimales que existen de verdad — los de la enmienda E-01 se conservan, no se redondean.
+- **Aviso de la bandeja de salida.** La bandeja reintentaba en silencio y la única señal era un
+  botón dentro de la pantalla de movimiento. Ahora hay franja visible en todas las pantallas y
+  aviso sobre la cámara.
+- **Errores sin salida.** `Ordenes`, `Proveedores`, `Ajustes` y `Facturas` mostraban el texto del
+  error sin ofrecer reintentar. `EstadoError` no admite esa combinación.
+- **Borrado sin confirmar.** Eliminar un proveedor se ejecutaba al primer toque.
+
 ## Hallazgos y decisiones de esta revisión
 
 - **La compilación de release se caía al abrir el escaneo.** R8 borraba los registradores de

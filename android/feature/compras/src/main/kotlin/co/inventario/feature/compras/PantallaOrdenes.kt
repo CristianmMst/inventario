@@ -2,85 +2,115 @@ package co.inventario.feature.compras
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import co.inventario.common.Resultado
-import co.inventario.data.repositorio.RepositorioCompras
 import co.inventario.designsystem.componentes.BotonPrincipal
 import co.inventario.designsystem.componentes.BotonSecundario
+import co.inventario.designsystem.componentes.CampoFecha
 import co.inventario.designsystem.componentes.CampoTexto
+import co.inventario.designsystem.componentes.DialogoConfirmacion
+import co.inventario.designsystem.componentes.EsqueletoLista
+import co.inventario.designsystem.componentes.EstadoError
+import co.inventario.designsystem.componentes.EstadoVacio
 import co.inventario.designsystem.componentes.MensajeError
+import co.inventario.designsystem.componentes.PantallaInventario
+import co.inventario.designsystem.componentes.PildoraEstadoOrden
+import co.inventario.designsystem.componentes.TarjetaDatos
+import co.inventario.designsystem.componentes.FilaDato
+import co.inventario.designsystem.componentes.Formato
 import co.inventario.designsystem.tema.Dimensiones
-import co.inventario.domain.modelo.Orden
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/** Listado de órdenes (RF-COM-013). */
-@HiltViewModel
-class OrdenesListadoViewModel @Inject constructor(private val compras: RepositorioCompras) : ViewModel() {
-    data class Estado(val ordenes: List<Orden> = emptyList(), val cargando: Boolean = true, val error: String? = null)
-
-    private val _estado = MutableStateFlow(Estado())
-    val estado = _estado.asStateFlow()
-
-    fun recargar() {
-        _estado.update { it.copy(cargando = true, error = null) }
-        viewModelScope.launch {
-            when (val r = compras.ordenes()) {
-                is Resultado.Exito -> _estado.update { it.copy(cargando = false, ordenes = r.valor.datos) }
-                is Resultado.Fallo -> _estado.update { it.copy(cargando = false, error = r.error.mensaje) }
-            }
-        }
-    }
-}
+import co.inventario.designsystem.tema.Iconos
+import co.inventario.designsystem.tema.Tipografia
+import java.time.LocalDate
 
 @Composable
-fun PantallaOrdenes(alAbrir: (String) -> Unit, alNueva: () -> Unit, alVolver: () -> Unit, vm: OrdenesListadoViewModel = hiltViewModel()) {
+fun PantallaOrdenes(
+    alAbrir: (String) -> Unit,
+    alNueva: () -> Unit,
+    alVolver: () -> Unit,
+    vm: OrdenesListadoViewModel = hiltViewModel(),
+) {
     val estado by vm.estado.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.recargar() }
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = Dimensiones.espacio), verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-        Text("Órdenes de compra", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = Dimensiones.espacio))
-        MensajeError(estado.error)
-        LazyColumn(Modifier.weight(1f)) {
-            items(estado.ordenes, key = { it.id }) { o ->
-                Column(Modifier.fillMaxWidth().defaultMinSize(minHeight = Dimensiones.areaTactilMinima).clickable { alAbrir(o.id) }.padding(vertical = Dimensiones.espacioCompacto)) {
-                    Text("${o.numero} · ${o.proveedor.nombre}", style = MaterialTheme.typography.titleMedium)
-                    Text("${o.estado.etiqueta} · ${o.lineas.size} líneas" + (o.totalEstimado?.let { " · ${it.aApi().monto} ${it.moneda}" } ?: ""), style = MaterialTheme.typography.bodyLarge)
+
+    PantallaInventario(
+        titulo = "Órdenes de compra",
+        alVolver = alVolver,
+        acciones = { BotonPrincipal("Nueva orden", alNueva, icono = Iconos.anadir) },
+    ) { relleno ->
+        Column(Modifier.fillMaxSize().padding(relleno)) {
+            val error = estado.error
+            when {
+                error != null && estado.ordenes.isEmpty() ->
+                    EstadoError(error, vm::recargar, Modifier.weight(1f))
+
+                estado.cargando && estado.ordenes.isEmpty() -> EsqueletoLista(Modifier.weight(1f))
+
+                estado.ordenes.isEmpty() -> EstadoVacio(
+                    titulo = "No hay órdenes",
+                    explicacion = "Las órdenes son opcionales: puedes recibir mercancía sin haber pedido antes.",
+                    icono = Iconos.orden,
+                    textoAccion = "Crear una orden",
+                    alAccionar = alNueva,
+                    modifier = Modifier.weight(1f),
+                )
+
+                else -> LazyColumn(Modifier.weight(1f)) {
+                    items(estado.ordenes, key = { it.id }) { orden ->
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = Dimensiones.alturaFilaLista)
+                                .clickable { alAbrir(orden.id) }
+                                .padding(horizontal = Dimensiones.espacio, vertical = Dimensiones.espacioMedio),
+                            verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+                            ) {
+                                Text(
+                                    orden.numero,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                PildoraEstadoOrden(orden.estado.etiqueta)
+                            }
+                            Text(
+                                orden.proveedor.nombre,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "${orden.lineas.size} líneas" +
+                                    (orden.totalEstimado?.let { " · " + Formato.monto(it.aApi().monto, it.moneda.toString()) } ?: ""),
+                                style = Tipografia.numeroCuerpo,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                 }
-                HorizontalDivider()
-            }
-            if (!estado.cargando && estado.ordenes.isEmpty()) {
-                item { Text("No hay órdenes. Las órdenes son opcionales: puedes recibir sin ellas.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(Dimensiones.espacio)) }
             }
         }
-        BotonPrincipal("Nueva orden", alNueva)
-        BotonSecundario("Volver", alVolver, Modifier.padding(bottom = Dimensiones.espacio))
     }
 }
 
@@ -95,54 +125,132 @@ fun PantallaOrdenDetalle(
     val estado by vm.estado.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.recargar() }
     val orden = estado.orden
-    Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Dimensiones.espacio),
-        verticalArrangement = Arrangement.spacedBy(Dimensiones.espacio),
-    ) {
-        Text(orden?.numero ?: "Orden", style = MaterialTheme.typography.headlineMedium)
-        if (orden != null) {
-            Text("${orden.proveedor.nombre} · ${orden.estado.etiqueta}", style = MaterialTheme.typography.titleMedium)
-            orden.fechaEsperada?.let { Text("Esperada para $it", style = MaterialTheme.typography.bodyLarge) }
-            orden.notas?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
-            orden.motivoCierre?.let { Text("Cierre: $it", style = MaterialTheme.typography.bodyLarge) }
-            if (!estado.puedeEditarLineas) Text("Las líneas ya no se editan: la orden está ${orden.estado.etiqueta.lowercase()}.", style = MaterialTheme.typography.bodyLarge)
-            orden.lineas.forEach { l ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(l.producto.nombre, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                    Text(
-                        "${l.cantidadOrdenada.valor.stripTrailingZeros().toPlainString()} pedidas · ${l.cantidadPendiente.valor.stripTrailingZeros().toPlainString()} pendientes",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
+
+    PantallaInventario(
+        titulo = orden?.numero ?: "Orden",
+        alVolver = alVolver,
+        acciones = if (orden != null) {
+            {
+                if (estado.puedeRecibir) {
+                    BotonPrincipal("Recibir contra esta orden", { alRecibir(orden.id) }, icono = Iconos.reponer)
                 }
-                HorizontalDivider()
+                if (estado.puedeEmitir) {
+                    BotonPrincipal("Emitir la orden", vm::emitir, habilitado = !estado.cargando, icono = Iconos.confirmar)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                    if (estado.puedeCerrarConFaltante) {
+                        BotonSecundario("Cerrar con faltante", vm::pedirCierreConFaltante, Modifier.weight(1f))
+                    }
+                    if (estado.puedeCancelar) {
+                        BotonSecundario(
+                            "Cancelar la orden",
+                            vm::pedirCancelacion,
+                            Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             }
-            MensajeError(estado.error)
-            if (estado.puedeEmitir) BotonPrincipal("Emitir la orden", vm::emitir, habilitado = !estado.cargando)
-            if (estado.puedeRecibir) BotonPrincipal("Recibir contra esta orden", { alRecibir(orden.id) })
-            if (estado.puedeCancelar) BotonSecundario("Cancelar la orden", vm::pedirCancelacion)
-            if (estado.puedeCerrarConFaltante) BotonSecundario("Cerrar con faltante", vm::pedirCierreConFaltante)
         } else {
+            null
+        },
+    ) { relleno ->
+        if (orden == null) {
+            EstadoError(
+                texto = estado.error ?: "No se pudo cargar la orden.",
+                alReintentar = vm::recargar,
+                modifier = Modifier.fillMaxSize().padding(relleno),
+            )
+            return@PantallaInventario
+        }
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(relleno)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Dimensiones.espacio),
+            verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioAmplio),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+            ) {
+                Text(orden.proveedor.nombre, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                PildoraEstadoOrden(orden.estado.etiqueta)
+            }
+
+            TarjetaDatos {
+                orden.fechaEsperada?.let { FilaDato("Esperada para", it.toString()) }
+                FilaDato("Líneas", "${orden.lineas.size}")
+                orden.totalEstimado?.let {
+                    FilaDato("Total estimado", Formato.monto(it.aApi().monto, it.moneda.toString()), ultima = orden.notas == null)
+                }
+                orden.notas?.let { FilaDato("Notas", it, ultima = true) }
+            }
+
+            orden.motivoCierre?.let {
+                Text("Cierre: $it", style = MaterialTheme.typography.bodyLarge)
+            }
+
+            if (!estado.puedeEditarLineas) {
+                Text(
+                    "Las líneas ya no se editan: la orden está ${orden.estado.etiqueta.lowercase()}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                Text("Productos", style = MaterialTheme.typography.titleMedium)
+                orden.lineas.forEach { linea ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = Dimensiones.areaTactilMinima)
+                            .padding(vertical = Dimensiones.espacioCompacto),
+                        horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioMedio),
+                    ) {
+                        Text(
+                            linea.producto.nombre,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "${linea.cantidadPendiente.valor.stripTrailingZeros().toPlainString()} / " +
+                                linea.cantidadOrdenada.valor.stripTrailingZeros().toPlainString(),
+                            style = Tipografia.numeroCuerpo,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                Text(
+                    "Pendiente / pedido",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+
             MensajeError(estado.error)
         }
-        BotonSecundario("Volver", alVolver)
     }
 
     estado.cierre?.let { tipo ->
-        AlertDialog(
-            onDismissRequest = vm::cancelarCierre,
-            title = { Text(if (tipo == TipoCierre.CANCELAR) "Cancelar la orden" else "Cerrar con faltante") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-                    Text(
-                        if (tipo == TipoCierre.CANCELAR) "La orden no admitirá recepciones. Escribe el motivo."
-                        else "Lo pendiente no llegará; la orden no admitirá más recepciones. Escribe el motivo.",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    CampoTexto(estado.motivo, vm::cambiarMotivo, "Motivo", error = estado.erroresCampo["motivo"])
-                }
+        DialogoConfirmacion(
+            titulo = if (tipo == TipoCierre.CANCELAR) "Cancelar la orden" else "Cerrar con faltante",
+            texto = if (tipo == TipoCierre.CANCELAR) {
+                "La orden no admitirá recepciones. Escribe el motivo."
+            } else {
+                "Lo pendiente no llegará; la orden no admitirá más recepciones. Escribe el motivo."
             },
-            confirmButton = { TextButton(onClick = vm::confirmarCierre, enabled = !estado.cargando) { Text("Confirmar") } },
-            dismissButton = { TextButton(onClick = vm::cancelarCierre) { Text("Volver") } },
+            textoConfirmar = "Confirmar",
+            alConfirmar = vm::confirmarCierre,
+            alCancelar = vm::cancelarCierre,
+            destructivo = true,
+            textoCancelar = "Volver",
+            contenidoExtra = {
+                CampoTexto(estado.motivo, vm::cambiarMotivo, "Motivo", error = estado.erroresCampo["motivo"])
+            },
         )
     }
 }
@@ -157,25 +265,67 @@ fun PantallaNuevaOrden(
 ) {
     val estado by vm.estado.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.sucesos.collect { if (it is NuevaOrdenSuceso.Creada) alCrear(it.ordenId) } }
-    Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Dimensiones.espacio),
-        verticalArrangement = Arrangement.spacedBy(Dimensiones.espacio),
-    ) {
-        Text("Nueva orden de compra", style = MaterialTheme.typography.headlineMedium)
-        SelectorProveedor(estado.proveedores, estado.proveedorId, vm::elegirProveedor, estado.erroresCampo["proveedor"])
-        CampoTexto(estado.fechaEsperada, vm::cambiarFechaEsperada, "Fecha esperada (AAAA-MM-DD, opcional)", error = estado.erroresCampo["fechaEsperada"])
-        CampoTexto(estado.notas, vm::cambiarNotas, "Notas (opcional)")
-        Text("Líneas", style = MaterialTheme.typography.titleMedium)
-        estado.lineas.forEachIndexed { i, l ->
-            LineaEditable(
-                l.producto, l.cantidad, l.costo, "Costo estimado (${estado.moneda})", null,
-                estado.erroresCampo["cantidad_$i"], null, { vm.cambiarCantidad(i, it) }, { vm.cambiarCosto(i, it) }, { vm.quitarLinea(i) },
+
+    PantallaInventario(
+        titulo = "Nueva orden de compra",
+        alVolver = alCancelar,
+        acciones = {
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                BotonSecundario("Cancelar", alCancelar, Modifier.weight(1f), habilitado = !estado.cargando)
+                Box(Modifier.weight(2f)) {
+                    BotonPrincipal(
+                        if (estado.cargando) "Guardando…" else "Guardar borrador",
+                        vm::guardar,
+                        habilitado = !estado.cargando,
+                        icono = Iconos.confirmar,
+                    )
+                }
+            }
+        },
+    ) { relleno ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(relleno)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Dimensiones.espacio),
+            verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioAmplio),
+        ) {
+            SelectorProveedor(estado.proveedores, estado.proveedorId, vm::elegirProveedor, estado.erroresCampo["proveedor"])
+
+            CampoFecha(
+                valor = estado.fechaEsperada.aFechaONulo(),
+                alCambiar = { vm.cambiarFechaEsperada(it.toString()) },
+                etiqueta = "Fecha esperada (opcional)",
+                error = estado.erroresCampo["fechaEsperada"],
             )
+            CampoTexto(estado.notas, vm::cambiarNotas, "Notas (opcional)", lineas = 3)
+
+            Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioMedio)) {
+                Text("Productos", style = MaterialTheme.typography.titleMedium)
+                estado.lineas.forEachIndexed { indice, linea ->
+                    LineaEditable(
+                        linea.producto,
+                        linea.cantidad,
+                        linea.costo,
+                        "Costo estimado (${estado.moneda})",
+                        null,
+                        estado.erroresCampo["cantidad_$indice"],
+                        null,
+                        { vm.cambiarCantidad(indice, it) },
+                        { vm.cambiarCosto(indice, it) },
+                        { vm.quitarLinea(indice) },
+                    )
+                }
+                estado.erroresCampo["lineas"]?.let { MensajeError(it) }
+                SelectorProducto(alElegir = vm::agregarLinea)
+            }
+
+            MensajeError(estado.error)
         }
-        estado.erroresCampo["lineas"]?.let { MensajeError(it) }
-        SelectorProducto(alElegir = vm::agregarLinea)
-        MensajeError(estado.error)
-        BotonPrincipal(if (estado.cargando) "Guardando…" else "Guardar borrador", vm::guardar, habilitado = !estado.cargando)
-        BotonSecundario("Cancelar", alCancelar)
     }
 }
+
+/** El ViewModel guarda la fecha como texto ISO; el calendario habla `LocalDate`. */
+internal fun String.aFechaONulo(): LocalDate? =
+    takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }

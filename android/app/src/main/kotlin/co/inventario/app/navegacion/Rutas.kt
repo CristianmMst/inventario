@@ -8,11 +8,19 @@ import kotlinx.serialization.Serializable
  * conoce estas rutas.
  */
 sealed interface Ruta {
-    @Serializable data object Bienvenida : Ruta
     @Serializable data object Login : Ruta
     @Serializable data object Registro : Ruta
+
+    /**
+     * Los cuatro destinos de primer nivel, los únicos que llevan barra inferior. `Inicio` es el
+     * escaneo y sigue siendo el destino de arranque (HU-03): la cámara es la puerta de todo,
+     * pero ya no es el único camino.
+     */
     @Serializable data object Inicio : Ruta
-    @Serializable data object Escaneo : Ruta
+    @Serializable data object Busqueda : Ruta
+    @Serializable data object Reponer : Ruta
+    @Serializable data object Menu : Ruta
+
     @Serializable data class ResolverCodigo(val codigo: String) : Ruta
     @Serializable data class Producto(val productoId: String) : Ruta
     @Serializable data class AltaProducto(val codigoBarras: String? = null) : Ruta
@@ -20,10 +28,8 @@ sealed interface Ruta {
     @Serializable data class Movimiento(val productoId: String, val tipo: String) : Ruta
     @Serializable data class Conteo(val productoId: String) : Ruta
     @Serializable data class Historial(val productoId: String) : Ruta
-    @Serializable data object Busqueda : Ruta
 
     // H9: compras, facturas, reportes y ajustes
-    @Serializable data object Menu : Ruta
     @Serializable data object Proveedores : Ruta
     @Serializable data object Ordenes : Ruta
     @Serializable data class Orden(val ordenId: String) : Ruta

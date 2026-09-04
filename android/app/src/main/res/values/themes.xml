@@ -2,4 +2,15 @@
 <resources>
     <!-- Tema de la Activity; el tema real vive en Compose (core:designsystem). -->
     <style name="Theme.Inventario" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+      Arranque: el sistema pinta el verde de marca con el icono encima mientras la app carga.
+      Antes el arranque en frío era un destello blanco antes de la cámara. Se aplica en el
+      manifiesto y `installSplashScreen()` lo cede a la app en cuanto hay algo que dibujar.
+    -->
+    <style name="Theme.Inventario.Arranque" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/verde_marca</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Inventario</item>
+    </style>
 </resources>

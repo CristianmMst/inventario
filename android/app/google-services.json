@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "948678097349",
+    "project_id": "kambio-ddb8f",
+    "storage_bucket": "kambio-ddb8f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:948678097349:android:428bd46a0f406ab4a333ac",
+        "android_client_info": {
+          "package_name": "co.inventario.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA052n5KrrxJvPKHDLx3JJXEPEwvWhIL_o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

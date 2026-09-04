@@ -4,16 +4,19 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,53 +26,32 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import co.inventario.common.Resultado
-import co.inventario.data.repositorio.FiltrosRecepciones
-import co.inventario.data.repositorio.RepositorioCompras
 import co.inventario.designsystem.componentes.BotonPrincipal
 import co.inventario.designsystem.componentes.BotonSecundario
 import co.inventario.designsystem.componentes.CampoCantidad
+import co.inventario.designsystem.componentes.CampoFecha
 import co.inventario.designsystem.componentes.CampoTexto
+import co.inventario.designsystem.componentes.ChipFiltro
 import co.inventario.designsystem.componentes.MensajeError
+import co.inventario.designsystem.componentes.PantallaInventario
+import co.inventario.designsystem.componentes.Formato
 import co.inventario.designsystem.tema.Dimensiones
+import co.inventario.designsystem.tema.Estado
+import co.inventario.designsystem.tema.Iconos
 import co.inventario.domain.modelo.LimitesImagen
-import co.inventario.domain.modelo.Proveedor
-import co.inventario.domain.modelo.Recepcion
 import co.inventario.imagenes.CompresorImagen
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.inject.Inject
-
-/** Datos auxiliares del formulario: proveedores y recepciones confirmadas del proveedor elegido (RF-FAC-006). */
-@HiltViewModel
-class AuxiliaresFacturaViewModel @Inject constructor(private val compras: RepositorioCompras) : ViewModel() {
-    data class Estado(val proveedores: List<Proveedor> = emptyList(), val recepciones: List<Recepcion> = emptyList())
-
-    private val _estado = MutableStateFlow(Estado())
-    val estado = _estado.asStateFlow()
-
-    init { viewModelScope.launch { (compras.proveedores() as? Resultado.Exito)?.let { r -> _estado.update { it.copy(proveedores = r.valor) } } } }
-
-    fun cargarRecepciones(proveedorId: String) {
-        viewModelScope.launch {
-            (compras.recepciones(FiltrosRecepciones(proveedorId = proveedorId, estado = "confirmada")) as? Resultado.Exito)
-                ?.let { r -> _estado.update { it.copy(recepciones = r.valor.datos) } }
-        }
-    }
-}
 
 /** T-091: registro de factura con base, IVA y total; el cuadre se valida antes de enviar; fotos ≤ 1,5 MB. */
 @Composable
@@ -94,7 +76,9 @@ fun PantallaNuevaFactura(
             comprimiendo = true
             ambito.launch {
                 // RNF-05: factura hasta 2048 px y 1,5 MB, sin recorte: el número debe leerse al 100 %.
-                val comprimida = withContext(Dispatchers.Default) { runCatching { CompresorImagen.comprimir(archivo.readBytes(), LimitesImagen.FACTURA) }.getOrNull() }
+                val comprimida = withContext(Dispatchers.Default) {
+                    runCatching { CompresorImagen.comprimir(archivo.readBytes(), LimitesImagen.FACTURA) }.getOrNull()
+                }
                 archivo.delete()
                 comprimiendo = false
                 comprimida?.let(vm::adjuntarFoto)
@@ -102,59 +86,202 @@ fun PantallaNuevaFactura(
         }
     }
 
-    Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Dimensiones.espacio),
-        verticalArrangement = Arrangement.spacedBy(Dimensiones.espacio),
-    ) {
-        Text("Registrar factura de compra", style = MaterialTheme.typography.headlineMedium)
-        Text("Proveedor", style = MaterialTheme.typography.bodyLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-            aux.proveedores.forEach { p ->
-                FilterChip(selected = p.id == estado.proveedorId, onClick = { vm.elegirProveedor(p.id); auxiliares.cargarRecepciones(p.id) }, label = { Text(p.nombre) })
-            }
-        }
-        estado.erroresCampo["proveedor"]?.let { MensajeError(it) }
-        CampoTexto(estado.numero, vm::cambiarNumero, "Número de factura", error = estado.erroresCampo["numero"])
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-            CampoTexto(estado.fechaEmision, vm::cambiarFechaEmision, "Emisión (AAAA-MM-DD)", Modifier.weight(1f), error = estado.erroresCampo["fechaEmision"])
-            CampoTexto(estado.fechaVencimiento, vm::cambiarFechaVencimiento, "Vence (opcional)", Modifier.weight(1f), error = estado.erroresCampo["fechaVencimiento"])
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-            CampoTexto(estado.moneda, vm::cambiarMoneda, "Moneda", Modifier.weight(1f), error = estado.erroresCampo["moneda"])
-            if (estado.moneda != monedaBase) CampoCantidad(estado.tasaCambio, vm::cambiarTasa, "Tasa a $monedaBase", Modifier.weight(2f), error = estado.erroresCampo["tasaCambio"])
-        }
-        CampoCantidad(estado.base, vm::cambiarBase, "Base gravable", error = estado.erroresCampo["base"])
-        CampoCantidad(estado.impuesto, vm::cambiarImpuesto, "Impuesto (IVA)", error = estado.erroresCampo["impuesto"])
-        CampoCantidad(estado.total, vm::cambiarTotal, "Total", error = estado.erroresCampo["total"])
-        estado.diferenciaCuadre?.let {
-            Text("Base más impuesto no da el total: diferencia de $it.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
-        }
-        if (aux.recepciones.isNotEmpty()) {
-            Text("Recepciones de este proveedor (opcional)", style = MaterialTheme.typography.bodyLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
-                aux.recepciones.forEach { r ->
-                    FilterChip(selected = r.id in estado.recepciones, onClick = { vm.alternarRecepcion(r.id) }, label = { Text("${r.numero} · ${r.total.aApi().monto}") })
+    PantallaInventario(
+        titulo = "Registrar factura",
+        alVolver = alCancelar,
+        acciones = {
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                BotonSecundario("Cancelar", alCancelar, Modifier.weight(1f), habilitado = !estado.cargando)
+                Box(Modifier.weight(2f)) {
+                    BotonPrincipal(
+                        if (estado.cargando) "Guardando…" else "Registrar",
+                        vm::guardar,
+                        habilitado = !estado.cargando && !comprimiendo,
+                        icono = Iconos.confirmar,
+                    )
                 }
             }
+        },
+    ) { relleno ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(relleno)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Dimensiones.espacio),
+            verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioAmplio),
+        ) {
+            Seccion("De quién y cuándo") {
+                Text(
+                    "Proveedor",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+                    verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+                ) {
+                    aux.proveedores.forEach { proveedor ->
+                        ChipFiltro(
+                            texto = proveedor.nombre,
+                            activo = proveedor.id == estado.proveedorId,
+                            alPulsar = {
+                                vm.elegirProveedor(proveedor.id)
+                                auxiliares.cargarRecepciones(proveedor.id)
+                            },
+                        )
+                    }
+                }
+                estado.erroresCampo["proveedor"]?.let { MensajeError(it) }
+
+                CampoTexto(
+                    estado.numero,
+                    vm::cambiarNumero,
+                    "Número de factura",
+                    error = estado.erroresCampo["numero"],
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                    CampoFecha(
+                        valor = estado.fechaEmision.aFechaONulo(),
+                        alCambiar = { vm.cambiarFechaEmision(it.toString()) },
+                        etiqueta = "Emisión",
+                        modifier = Modifier.weight(1f),
+                        error = estado.erroresCampo["fechaEmision"],
+                    )
+                    CampoFecha(
+                        valor = estado.fechaVencimiento.aFechaONulo(),
+                        alCambiar = { vm.cambiarFechaVencimiento(it.toString()) },
+                        etiqueta = "Vence (opcional)",
+                        modifier = Modifier.weight(1f),
+                        error = estado.erroresCampo["fechaVencimiento"],
+                    )
+                }
+            }
+
+            Seccion("Importes") {
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                    CampoTexto(
+                        estado.moneda,
+                        vm::cambiarMoneda,
+                        "Moneda",
+                        Modifier.weight(1f),
+                        error = estado.erroresCampo["moneda"],
+                    )
+                    if (estado.moneda != monedaBase) {
+                        CampoCantidad(
+                            estado.tasaCambio,
+                            vm::cambiarTasa,
+                            "Tasa a $monedaBase",
+                            Modifier.weight(2f),
+                            error = estado.erroresCampo["tasaCambio"],
+                        )
+                    }
+                }
+                CampoCantidad(estado.base, vm::cambiarBase, "Base gravable", error = estado.erroresCampo["base"])
+                CampoCantidad(estado.impuesto, vm::cambiarImpuesto, "Impuesto (IVA)", error = estado.erroresCampo["impuesto"])
+                CampoCantidad(estado.total, vm::cambiarTotal, "Total", error = estado.erroresCampo["total"])
+                Cuadre(estado.diferenciaCuadre, estado.base, estado.impuesto, estado.total)
+            }
+
+            if (aux.recepciones.isNotEmpty()) {
+                Seccion("Recepciones de este proveedor (opcional)") {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+                        verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto),
+                    ) {
+                        aux.recepciones.forEach { recepcion ->
+                            ChipFiltro(
+                                texto = recepcion.numero + " · " + Formato.monto(recepcion.total.aApi().monto),
+                                activo = recepcion.id in estado.recepciones,
+                                alPulsar = { vm.alternarRecepcion(recepcion.id) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            Seccion("Foto y notas") {
+                BotonSecundario(
+                    texto = when {
+                        comprimiendo -> "Preparando la foto…"
+                        estado.fotos.isEmpty() -> "Fotografiar la factura"
+                        else -> "${estado.fotos.size} foto(s) · ${estado.fotos.sumOf { it.size } / 1024} KB · Tomar otra"
+                    },
+                    alPulsar = {
+                        val archivo = File(
+                            File(contexto.cacheDir, "fotos").apply { mkdirs() },
+                            "factura_${System.currentTimeMillis()}.jpg",
+                        )
+                        archivoFoto = archivo
+                        tomarFoto.launch(uriPara(contexto, archivo))
+                    },
+                    habilitado = !comprimiendo && !estado.cargando,
+                    icono = Iconos.camara,
+                )
+                Text(
+                    "El contador tiene que poder leer número, fecha y monto sin ampliar.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                CampoTexto(estado.notas, vm::cambiarNotas, "Notas (opcional)", lineas = 3)
+            }
+
+            MensajeError(estado.error)
         }
-        CampoTexto(estado.notas, vm::cambiarNotas, "Notas (opcional)")
-        BotonSecundario(
-            when {
-                comprimiendo -> "Preparando foto…"
-                estado.fotos.isEmpty() -> "Fotografiar la factura"
-                else -> "${estado.fotos.size} foto(s) · ${estado.fotos.sumOf { it.size } / 1024} KB · Tomar otra"
-            },
-            {
-                val archivo = File(File(contexto.cacheDir, "fotos").apply { mkdirs() }, "factura_${System.currentTimeMillis()}.jpg")
-                archivoFoto = archivo
-                tomarFoto.launch(uriPara(contexto, archivo))
-            },
-            habilitado = !comprimiendo && !estado.cargando,
-        )
-        MensajeError(estado.error)
-        BotonPrincipal(if (estado.cargando) "Guardando…" else "Registrar", vm::guardar, habilitado = !estado.cargando && !comprimiendo)
-        BotonSecundario("Cancelar", alCancelar, habilitado = !estado.cargando)
     }
 }
 
-private fun uriPara(contexto: Context, archivo: File): Uri = FileProvider.getUriForFile(contexto, "${contexto.packageName}.fotos", archivo)
+/**
+ * Base + impuesto tiene que dar el total; la base de datos lo exige. Antes solo aparecía el
+ * descuadre en rojo cuando ya lo había: ahora también se ve cuando cuadra, que es la señal de
+ * que se puede seguir sin miedo.
+ */
+@Composable
+private fun Cuadre(diferencia: String?, base: String, impuesto: String, total: String) {
+    val hayDatos = listOf(base, impuesto, total).any { it.isNotBlank() }
+    if (!hayDatos) return
+    val cuadra = diferencia == null
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                if (cuadra) Estado.enRangoContenedor else Estado.agotadoContenedor,
+                MaterialTheme.shapes.medium,
+            )
+            .padding(Dimensiones.espacioMedio),
+        horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioMedio),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (cuadra) Iconos.confirmar else Iconos.error,
+            contentDescription = null,
+            tint = if (cuadra) Estado.enRango else Estado.agotado,
+            modifier = Modifier.size(Dimensiones.icono),
+        )
+        Text(
+            if (cuadra) {
+                "Base más impuesto da el total."
+            } else {
+                "Base más impuesto no da el total: diferencia de $diferencia."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (cuadra) Estado.sobreEnRangoContenedor else Estado.sobreAgotadoContenedor,
+        )
+    }
+}
+
+@Composable
+private fun Seccion(titulo: String, contenido: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioMedio)) {
+        Text(
+            titulo,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.semantics { heading() },
+        )
+        contenido()
+    }
+}
+
+private fun uriPara(contexto: Context, archivo: File): Uri =
+    FileProvider.getUriForFile(contexto, "${contexto.packageName}.fotos", archivo)

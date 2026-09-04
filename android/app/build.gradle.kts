@@ -14,9 +14,10 @@ android {
         versionName = "1.0.0"
     }
 
-    // La app apunta al backend por la IP de la máquina en la red local (plan.md §10).
+    // La app apunta al backend en localhost (usar `adb reverse tcp:8000 tcp:8000` en
+    // dispositivo físico, o el emulador ya resuelve localhost por su propia red).
     // Se sobreescribe con -PbackendUrl=http://192.168.x.y:8000/ al compilar.
-    val backendUrl = (project.findProperty("backendUrl") as String?) ?: "http://10.0.2.2:8000/"
+    val backendUrl = (project.findProperty("backendUrl") as String?) ?: "http://localhost:8000/"
 
     buildTypes {
         debug {
@@ -62,6 +63,7 @@ dependencies {
     implementation(project(":feature:ajustes"))
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

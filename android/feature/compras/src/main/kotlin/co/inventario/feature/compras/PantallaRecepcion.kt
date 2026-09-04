@@ -1,16 +1,15 @@
 package co.inventario.feature.compras
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,8 +20,13 @@ import co.inventario.designsystem.componentes.BotonPrincipal
 import co.inventario.designsystem.componentes.BotonSecundario
 import co.inventario.designsystem.componentes.CampoCantidad
 import co.inventario.designsystem.componentes.CampoTexto
+import co.inventario.designsystem.componentes.DialogoConfirmacion
+import co.inventario.designsystem.componentes.FilaDato
 import co.inventario.designsystem.componentes.MensajeError
+import co.inventario.designsystem.componentes.PantallaInventario
+import co.inventario.designsystem.componentes.TarjetaDatos
 import co.inventario.designsystem.tema.Dimensiones
+import co.inventario.designsystem.tema.Iconos
 import co.inventario.domain.modelo.Recepcion
 
 /** T-090: recepción directa o contra orden (RF-COM-004/005); exceso con confirmación explícita (RF-COM-009). */
@@ -37,48 +41,99 @@ fun PantallaRecepcion(
     val estado by vm.estado.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.sucesos.collect { if (it is RecepcionSuceso.Confirmada) alConfirmar(it.recepcion) } }
 
-    Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Dimensiones.espacio),
-        verticalArrangement = Arrangement.spacedBy(Dimensiones.espacio),
-    ) {
-        Text(estado.ordenNumero?.let { "Recibir $it" } ?: "Recepción directa", style = MaterialTheme.typography.headlineMedium)
-        if (estado.ordenId == null) {
-            SelectorProveedor(estado.proveedores, estado.proveedorId, vm::elegirProveedor, estado.erroresCampo["proveedor"])
-        } else {
-            Text("Proveedor: ${estado.proveedores.firstOrNull { it.id == estado.proveedorId }?.nombre ?: ""}", style = MaterialTheme.typography.bodyLarge)
+    PantallaInventario(
+        titulo = estado.ordenNumero?.let { "Recibir $it" } ?: "Recepción directa",
+        alVolver = alCancelar,
+        acciones = {
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimensiones.espacioCompacto)) {
+                BotonSecundario("Cancelar", alCancelar, Modifier.weight(1f), habilitado = !estado.cargando)
+                Box(Modifier.weight(2f)) {
+                    BotonPrincipal(
+                        if (estado.cargando) "Confirmando…" else "Confirmar recepción",
+                        vm::confirmar,
+                        habilitado = !estado.cargando,
+                        icono = Iconos.confirmar,
+                    )
+                }
+            }
+        },
+    ) { relleno ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(relleno)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Dimensiones.espacio),
+            verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioAmplio),
+        ) {
+            if (estado.ordenId == null) {
+                SelectorProveedor(
+                    estado.proveedores,
+                    estado.proveedorId,
+                    vm::elegirProveedor,
+                    estado.erroresCampo["proveedor"],
+                )
+            } else {
+                TarjetaDatos {
+                    FilaDato(
+                        "Proveedor",
+                        estado.proveedores.firstOrNull { it.id == estado.proveedorId }?.nombre.orEmpty(),
+                        ultima = true,
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioMedio)) {
+                CampoTexto(
+                    estado.moneda,
+                    vm::cambiarMoneda,
+                    "Moneda",
+                    apoyo = "Código ISO 4217. Si no es $monedaBase, hay que decir a cuánto está el cambio.",
+                )
+                if (estado.moneda != monedaBase) {
+                    CampoCantidad(
+                        estado.tasaCambio,
+                        vm::cambiarTasa,
+                        "Tasa de cambio a $monedaBase",
+                        error = estado.erroresCampo["tasaCambio"],
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(Dimensiones.espacioMedio)) {
+                Text("Líneas recibidas", style = MaterialTheme.typography.titleMedium)
+                estado.lineas.forEachIndexed { indice, linea ->
+                    LineaEditable(
+                        linea.producto,
+                        linea.cantidad,
+                        linea.costo,
+                        "Costo unitario (${estado.moneda})",
+                        linea.pendiente,
+                        estado.erroresCampo["cantidad_$indice"],
+                        estado.erroresCampo["costo_$indice"],
+                        { vm.cambiarCantidad(indice, it) },
+                        { vm.cambiarCosto(indice, it) },
+                        { vm.quitarLinea(indice) },
+                    )
+                }
+                estado.erroresCampo["lineas"]?.let { MensajeError(it) }
+                if (estado.ordenId == null) SelectorProducto(alElegir = vm::agregarLinea)
+            }
+
+            CampoTexto(estado.notas, vm::cambiarNotas, "Notas (opcional)", lineas = 3)
+            MensajeError(estado.error)
         }
-        CampoTexto(estado.moneda, vm::cambiarMoneda, "Moneda (ISO 4217)")
-        if (estado.moneda != monedaBase) {
-            CampoCantidad(estado.tasaCambio, vm::cambiarTasa, "Tasa de cambio a $monedaBase", error = estado.erroresCampo["tasaCambio"])
-        }
-        Text("Líneas recibidas", style = MaterialTheme.typography.titleMedium)
-        estado.lineas.forEachIndexed { i, l ->
-            LineaEditable(
-                l.producto, l.cantidad, l.costo, "Costo unitario (${estado.moneda})", l.pendiente,
-                estado.erroresCampo["cantidad_$i"], estado.erroresCampo["costo_$i"],
-                { vm.cambiarCantidad(i, it) }, { vm.cambiarCosto(i, it) }, { vm.quitarLinea(i) },
-            )
-        }
-        estado.erroresCampo["lineas"]?.let { MensajeError(it) }
-        if (estado.ordenId == null) SelectorProducto(alElegir = vm::agregarLinea)
-        CampoTexto(estado.notas, vm::cambiarNotas, "Notas (opcional)")
-        MensajeError(estado.error)
-        BotonPrincipal(if (estado.cargando) "Confirmando…" else "Confirmar recepción", vm::confirmar, habilitado = !estado.cargando)
-        BotonSecundario("Cancelar", alCancelar, habilitado = !estado.cargando)
     }
 
     estado.avisoExceso?.let { aviso ->
-        AlertDialog(
-            onDismissRequest = vm::descartarExceso,
-            title = { Text("Estás recibiendo más de lo pedido") },
-            text = {
-                Text(
-                    "La orden ${aviso.ordenNumero ?: ""} pedía menos en ${aviso.lineasConExceso} línea(s). Si confirmas, el exceso queda registrado en la recepción.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            },
-            confirmButton = { TextButton(onClick = vm::confirmarExceso, enabled = !estado.cargando) { Text("Sí, recibir el exceso") } },
-            dismissButton = { TextButton(onClick = vm::descartarExceso) { Text("Corregir cantidades") } },
+        DialogoConfirmacion(
+            titulo = "Estás recibiendo más de lo pedido",
+            texto = "La orden ${aviso.ordenNumero.orEmpty()} pedía menos en ${aviso.lineasConExceso} línea(s). " +
+                "Si confirmas, el exceso queda registrado en la recepción.",
+            textoConfirmar = "Sí, recibir el exceso",
+            alConfirmar = vm::confirmarExceso,
+            alCancelar = vm::descartarExceso,
+            textoCancelar = "Corregir cantidades",
         )
     }
 }

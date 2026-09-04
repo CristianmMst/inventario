@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      El verde de marca, duplicado aquí porque el icono de lanzador y la pantalla de arranque
+      los pinta el sistema antes de que exista ningún Composable: no pueden leer `Colores`.
+      Si cambia en `core:designsystem/tema/Tokens.kt`, cambia aquí.
+    -->
+    <color name="verde_marca">#0B5D4B</color>
+</resources>
