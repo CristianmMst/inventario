@@ -10,6 +10,7 @@ from app.api.v1 import (
     eventos,
     facturas,
     imagenes,
+    integracion,
     motivos,
     movimientos,
     negocio,
@@ -59,6 +60,7 @@ api_v1.include_router(facturas.router)
 api_v1.include_router(eventos.router)
 api_v1.include_router(webhooks.router)
 api_v1.include_router(reportes.router)
+api_v1.include_router(integracion.router)
 app.include_router(api_v1)
 
 # RNF-17: seguridad, ejemplos de petición y errores documentados en el 100% de las rutas.

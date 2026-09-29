@@ -1,0 +1,242 @@
+{
+  "name": "Aviso diario de stock bajo",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "6aebc440-1e37-4139-9c13-c92e5451d00c",
+      "name": "Cada dia a las 8",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "593b3218-04e5-444b-aad1-34b12be4e6a3",
+              "name": "api_url",
+              "type": "string",
+              "value": "http://CAMBIAR-IP:8091/api/v1"
+            },
+            {
+              "id": "259152c3-f419-4720-9635-f1032261248e",
+              "name": "gemini_modelo",
+              "type": "string",
+              "value": "gemini-2.5-flash"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83b4f86e-3548-4152-8c73-ad56c428d039",
+      "name": "Configuracion",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.api_url.replace(/\\/+$/, '') + '/integracion/stock-bajo' }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "0d973fac-ee0a-4855-b164-2ff2ba50e975",
+      "name": "Consultar stock bajo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un item por negocio: destinatario, asunto, tabla HTML y el resumen que lee Gemini.\nconst negocios = $input.first().json.negocios || [];\n\nconst esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (c) => (\n  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst num = (x) => (x === null || x === undefined ? '-' : String(Number(x)));\nconst celda = 'padding:6px 10px;border-bottom:1px solid #ddd';\n\nreturn negocios.map((n) => {\n  const filas = n.productos.map((p) => '<tr>'\n    + '<td style=\"' + celda + '\">' + esc(p.nombre) + '</td>'\n    + '<td style=\"' + celda + ';text-align:right\">' + num(p.stock_actual) + ' ' + esc(p.unidad) + '</td>'\n    + '<td style=\"' + celda + ';text-align:right\">' + num(p.stock_minimo) + ' ' + esc(p.unidad) + '</td>'\n    + '<td style=\"' + celda + ';text-align:right\"><b>' + num(p.deficit) + ' ' + esc(p.unidad) + '</b></td>'\n    + '</tr>').join('');\n\n  const uno = n.productos.length === 1;\n  const tabla_html = '<p>Hola ' + esc(n.dueno.nombre) + ',</p>'\n    + '<p>' + (uno ? 'Este producto de' : 'Estos productos de') + ' <b>' + esc(n.negocio.nombre)\n    + '</b> ' + (uno ? 'está' : 'están') + ' por debajo de su stock mínimo:</p>'\n    + '<table style=\"border-collapse:collapse;font-family:sans-serif;font-size:14px\">'\n    + '<tr style=\"background:#f3f3f3\"><th style=\"padding:6px 10px;text-align:left\">Producto</th>'\n    + '<th style=\"padding:6px 10px;text-align:right\">Stock actual</th>'\n    + '<th style=\"padding:6px 10px;text-align:right\">Mínimo</th>'\n    + '<th style=\"padding:6px 10px;text-align:right\">Falta</th></tr>'\n    + filas + '</table>';\n\n  return { json: {\n    destinatario: n.dueno.email,\n    asunto: uno\n      ? 'Stock bajo: ' + n.productos[0].nombre\n      : 'Stock bajo: ' + n.productos.length + ' productos en ' + n.negocio.nombre,\n    negocio: n.negocio.nombre,\n    tabla_html,\n    resumen: n.productos.map((p) => ({\n      producto: p.nombre,\n      stock_actual: num(p.stock_actual),\n      stock_minimo: num(p.stock_minimo),\n      deficit: num(p.deficit),\n      unidad: p.unidad,\n    })),\n  } };\n});\n"
+      },
+      "id": "12da6181-31e0-4759-b180-bbb8fecb65d5",
+      "name": "Un correo por negocio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ 'models/' + $('Configuracion').first().json.gemini_modelo }}"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "=Negocio: {{ $json.negocio }}\nProductos bajo el minimo (JSON):\n{{ JSON.stringify($json.resumen) }}"
+            }
+          ]
+        },
+        "simplify": true,
+        "options": {
+          "systemMessage": "Eres el asistente de inventario de un negocio pequeno. Recibes productos cuyo stock esta por debajo del minimo. Escribe en espanol, en texto plano (sin markdown, sin HTML), maximo 120 palabras: 1) una frase con lo mas urgente, priorizando por deficit relativo al minimo; 2) una linea por producto con una cantidad sugerida a pedir (el deficit mas un margen razonable, con su unidad). Usa solo los datos recibidos: no inventes proveedores, precios ni fechas. No incluyas saludo ni despedida.",
+          "temperature": 0.3,
+          "maxOutputTokens": 800,
+          "thinkingBudget": 0
+        }
+      },
+      "id": "13d40996-d14a-44c7-ab4d-43fddf1db6c6",
+      "name": "Gemini redacta",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Texto de Gemini + tabla. Si Gemini falló o vino vacío, sale solo la tabla.\nconst base = $('Un correo por negocio').item.json;\nconst r = $input.item.json;\nconst partes = r.content?.parts || r.candidates?.[0]?.content?.parts || [];\nconst texto = partes.filter((p) => typeof p.text === 'string' && !p.thought)\n  .map((p) => p.text).join('').trim();\n\nconst esc = (s) => String(s).replace(/[&<>\"']/g, (c) => (\n  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n\n// La salida del modelo es texto no confiable: se escapa y solo se conservan los saltos de línea.\nconst bloqueIa = texto\n  ? '<div style=\"font-family:sans-serif;font-size:14px;line-height:1.5\">'\n    + esc(texto).replace(/\\n/g, '<br>') + '</div><hr style=\"margin:16px 0;border:0;border-top:1px solid #ddd\">'\n  : '';\n\nreturn { json: {\n  destinatario: base.destinatario,\n  asunto: base.asunto,\n  html: bloqueIa + base.tabla_html,\n  con_ia: Boolean(texto),\n} };\n"
+      },
+      "id": "7143fdce-5342-4d95-ad55-56994d390fdc",
+      "name": "Componer correo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.destinatario }}",
+        "subject": "={{ $json.asunto }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "senderName": "Inventario",
+          "appendAttribution": false
+        }
+      },
+      "id": "c911baac-cdfe-4c4c-a3cf-c4520d2ea60f",
+      "name": "Enviar correo al dueno",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "width": 780,
+        "height": 240,
+        "content": "## Aviso diario de stock bajo con IA\nTodos los días a las 8:00 consulta `GET /integracion/stock-bajo` (pública), y para cada negocio con productos bajo el mínimo **Google Gemini** redacta qué priorizar y cuánto pedir y **Gmail** se lo envía al dueño junto a la tabla. Si Gemini falla, sale solo la tabla.\n\n1. En **Configuracion** pon la URL de la API (p. ej. `http://IP:8091/api/v1`) y el modelo de Gemini.\n2. En **Gemini redacta** crea la credencial *Google Gemini (PaLM) API* con tu API key de Google AI Studio.\n3. En **Enviar correo al dueno** crea la credencial *Gmail OAuth2* de la cuenta que envía.\n4. Activa el workflow."
+      },
+      "id": "aa239324-0e0e-4f72-87a0-6f67c34ec25f",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "Cada dia a las 8": {
+      "main": [
+        [
+          {
+            "node": "Configuracion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuracion": {
+      "main": [
+        [
+          {
+            "node": "Consultar stock bajo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar stock bajo": {
+      "main": [
+        [
+          {
+            "node": "Un correo por negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Un correo por negocio": {
+      "main": [
+        [
+          {
+            "node": "Gemini redacta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini redacta": {
+      "main": [
+        [
+          {
+            "node": "Componer correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Componer correo": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo al dueno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

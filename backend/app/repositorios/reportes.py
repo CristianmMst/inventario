@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modelos.catalogo import Categoria, Producto
 from app.modelos.compras import Proveedor, Recepcion, RecepcionLinea
 from app.modelos.facturas import Factura
+from app.modelos.identidad import Membresia, Negocio, Usuario
 from app.modelos.inventario import MotivoMovimiento, Movimiento, StockProducto
 
 STOCK = sa.func.coalesce(StockProducto.cantidad, 0)
@@ -73,6 +74,39 @@ class RepositorioReportes:
             consulta = consulta.where(
                 sa.tuple_(relativo, Producto.id) < sa.tuple_(sa.literal(r), sa.literal(pid))
             )
+        return list((await self._s.execute(consulta)).all())
+
+    async def bajo_minimo_de_todos(self) -> list[sa.Row[Any]]:
+        """Lo mismo que `bajo_minimo` pero para todos los negocios a la vez, con el dueño de
+        cada uno. Es la única consulta que cruza negocios: la usa el aviso por correo."""
+        deficit = (Producto.stock_minimo - STOCK).label("deficit")
+        relativo = sa.case(
+            (Producto.stock_minimo > 0, (Producto.stock_minimo - STOCK) / Producto.stock_minimo),
+            else_=sa.literal(Decimal(1)),
+        )
+        consulta = (
+            sa.select(
+                Negocio.id.label("negocio_id"),
+                Negocio.nombre.label("negocio_nombre"),
+                Usuario.nombre.label("dueno_nombre"),
+                Usuario.email.label("dueno_email"),
+                *_producto_cols(),
+                STOCK.label("stock"),
+                Producto.stock_minimo,
+                deficit,
+            )
+            .select_from(Producto)
+            .join(StockProducto, StockProducto.producto_id == Producto.id)
+            .join(Negocio, Negocio.id == Producto.negocio_id)
+            .join(Membresia, (Membresia.negocio_id == Negocio.id) & (Membresia.rol == "dueno"))
+            .join(Usuario, Usuario.id == Membresia.usuario_id)
+            .where(
+                Producto.estado == "activo",
+                Producto.stock_minimo.is_not(None),
+                StockProducto.bajo_minimo.is_(True),
+            )
+            .order_by(Negocio.nombre, Negocio.id, relativo.desc(), Producto.id)
+        )
         return list((await self._s.execute(consulta)).all())
 
     async def agotados(

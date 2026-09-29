@@ -38,6 +38,8 @@ PUBLICAS = {
     ("POST", "/api/v1/auth/registro"),
     ("POST", "/api/v1/auth/refresh"),
     ("GET", "/api/v1/salud"),
+    # Aviso de stock bajo por correo desde n8n: pública por decisión del proyecto.
+    ("GET", "/api/v1/integracion/stock-bajo"),
     # Con `t` sirve la imagen firmada sin credencial (RNF-11); sin `t` la exige en el código.
     ("GET", "/api/v1/imagenes/{identificador}"),
 }

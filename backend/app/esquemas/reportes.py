@@ -29,6 +29,36 @@ class FilaBajoMinimo(BaseModel):
     deficit_relativo: str
 
 
+class NegocioBreve(BaseModel):
+    id: uuid.UUID
+    nombre: str
+
+
+class DuenoContacto(BaseModel):
+    nombre: str
+    email: str
+
+
+class ProductoBajoMinimo(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    sku: str
+    unidad: str
+    stock_actual: str
+    stock_minimo: str
+    deficit: str
+
+
+class NegocioConStockBajo(BaseModel):
+    negocio: NegocioBreve
+    dueno: DuenoContacto
+    productos: list[ProductoBajoMinimo]
+
+
+class StockBajoPorNegocio(BaseModel):
+    negocios: list[NegocioConStockBajo]
+
+
 class FilaAgotado(BaseModel):
     producto: ProductoBreve
     stock_actual: str

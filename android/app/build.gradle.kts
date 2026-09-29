@@ -26,7 +26,13 @@ android {
         }
         release {
             isMinifyEnabled = false
-            buildConfigField("String", "BACKEND_URL", "\"https://inventario.invalid/\"")
+            // API desplegada. Se sobreescribe con -PbackendUrlProduccion=https://otra.api/
+            val backendUrlProduccion = (project.findProperty("backendUrlProduccion") as String?)
+                ?: "https://api.mikelabs.com.co/"
+            buildConfigField("String", "BACKEND_URL", "\"$backendUrlProduccion\"")
+            // Sin clave de publicación todavía: se firma con la de depuración para poder
+            // instalar el APK. Antes de subir a Play Store hay que crear una clave propia.
+            signingConfig = signingConfigs.getByName("debug")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

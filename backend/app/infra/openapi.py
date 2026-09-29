@@ -24,6 +24,7 @@ PUBLICAS = {
     ("post", "/api/v1/auth/registro"),
     ("post", "/api/v1/auth/refresh"),
     ("get", "/api/v1/salud"),
+    ("get", "/api/v1/integracion/stock-bajo"),
     ("get", "/api/v1/imagenes/{identificador}"),
 }
 # Manipulan la sesión de un usuario: una credencial de servicio no tiene sesión que cerrar.

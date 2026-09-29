@@ -26,8 +26,10 @@ Documento: `GET /openapi.json` (75 operaciones al cierre). Interfaz interactiva 
 | `credencialServicio` | `X-API-Key: inv_<prefijo>_<secreto>` | Integraciones (`RF-AUT-005`). Mismo negocio, mismas operaciones. |
 
 Rutas **públicas** por diseño (`RNF-11`): `POST /auth/login`, `POST /auth/registro`,
-`POST /auth/refresh`, `GET /salud` y `GET /imagenes/{identificador}` cuando lleva el token
-firmado `t`. Rutas **solo de usuario** porque operan sobre una sesión: `POST /auth/logout` y
+`POST /auth/refresh`, `GET /salud`, `GET /imagenes/{identificador}` cuando lleva el token
+firmado `t`, y `GET /integracion/stock-bajo`. Esta última devuelve, de todos los negocios, los
+productos bajo el mínimo con el email del dueño para el aviso diario por correo desde n8n; es
+pública por decisión del proyecto y expone esos emails a quien conozca la URL. Rutas **solo de usuario** porque operan sobre una sesión: `POST /auth/logout` y
 `PATCH /auth/password`; una credencial de servicio no tiene sesión que cerrar ni contraseña.
 
 ## Capacidad ↔ endpoint

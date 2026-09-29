@@ -16,6 +16,7 @@ from app.esquemas.reportes import (
     CategoriaBreve,
     ComprasCategoria,
     ComprasProveedor,
+    DuenoContacto,
     FilaAgotado,
     FilaBajoMinimo,
     FilaDiscrepancia,
@@ -24,8 +25,12 @@ from app.esquemas.reportes import (
     Lista,
     MermaMotivo,
     MermaProducto,
+    NegocioBreve,
+    NegocioConStockBajo,
+    ProductoBajoMinimo,
     ResumenCompras,
     ResumenMermas,
+    StockBajoPorNegocio,
     ValorCategoria,
     Valorizacion,
 )
@@ -100,6 +105,33 @@ async def bajo_minimo(
         clave_de=lambda s: {"r": str(relativos[s.producto.id]), "id": str(s.producto.id)},
     )
     return Lista(datos=pag.datos, cursor_siguiente=pag.cursor_siguiente, tiene_mas=pag.tiene_mas)
+
+
+async def bajo_minimo_de_todos(sesion: AsyncSession) -> StockBajoPorNegocio:
+    """Agrupa por negocio lo que devuelve el repositorio, ya ordenado por negocio y déficit."""
+    async with sesion.begin():
+        filas = await RepositorioReportes(sesion).bajo_minimo_de_todos()
+    grupos: dict[uuid.UUID, NegocioConStockBajo] = {}
+    for f in filas:
+        grupo = grupos.get(f.negocio_id)
+        if grupo is None:
+            grupo = grupos[f.negocio_id] = NegocioConStockBajo(
+                negocio=NegocioBreve(id=f.negocio_id, nombre=f.negocio_nombre),
+                dueno=DuenoContacto(nombre=f.dueno_nombre, email=f.dueno_email),
+                productos=[],
+            )
+        grupo.productos.append(
+            ProductoBajoMinimo(
+                id=f.producto_id,
+                nombre=f.producto_nombre,
+                sku=f.producto_sku,
+                unidad=f.producto_unidad,
+                stock_actual=_cantidad(f.stock),
+                stock_minimo=_cantidad(f.stock_minimo),
+                deficit=_cantidad(f.deficit),
+            )
+        )
+    return StockBajoPorNegocio(negocios=list(grupos.values()))
 
 
 async def agotados(
