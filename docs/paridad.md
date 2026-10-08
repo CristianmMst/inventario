@@ -29,7 +29,9 @@ Rutas **públicas** por diseño (`RNF-11`): `POST /auth/login`, `POST /auth/regi
 `POST /auth/refresh`, `GET /salud`, `GET /imagenes/{identificador}` cuando lleva el token
 firmado `t`, y `GET /integracion/stock-bajo`. Esta última devuelve, de todos los negocios, los
 productos bajo el mínimo con el email del dueño para el aviso diario por correo desde n8n; es
-pública por decisión del proyecto y expone esos emails a quien conozca la URL. Rutas **solo de usuario** porque operan sobre una sesión: `POST /auth/logout` y
+pública por decisión del proyecto y expone esos emails a quien conozca la URL. Por eso el
+asistente (H12) **no** la usa. `POST /asistente/herramientas/{herramienta}` tampoco lleva
+credencial: la llama Retell y se autentica con la firma `X-Retell-Signature` (`RF-AST-004`). Rutas **solo de usuario** porque operan sobre una sesión: `POST /auth/logout` y
 `PATCH /auth/password`; una credencial de servicio no tiene sesión que cerrar ni contraseña.
 
 ## Capacidad ↔ endpoint
@@ -61,6 +63,7 @@ Todas las rutas van bajo `/api/v1`. Las marcadas con ⚿ exigen `Idempotency-Key
 | Exportación ZIP para el contador | Facturas | `GET /facturas/exportacion?desde&hasta` |
 | Siete reportes | Reportes | `GET /reportes/bajo-minimo`, `/agotados`, `/sin-movimiento`, `/valorizacion`, `/compras`, `/mermas`, `/discrepancias` |
 | Credenciales de servicio | Ajustes | `GET /api-keys`, `POST /api-keys`, `DELETE /api-keys/{id}` |
+| Asistente de inventario | Asistente | `POST /asistente/chats`, `POST /asistente/chats/{id}/mensajes`, `DELETE /asistente/chats/{id}` |
 | Webhooks (contrato, sin entrega en v1) | Ajustes | `GET /webhooks`, `POST /webhooks`, `DELETE /webhooks/{id}` |
 | Eventos de negocio (solo API) | — | `GET /eventos` |
 

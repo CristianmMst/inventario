@@ -27,5 +27,8 @@ abstract class ModuloRepositorios {
     abstract fun reportes(impl: RepositorioReportesApi): RepositorioReportes
 
     @Binds
+    abstract fun asistente(impl: RepositorioAsistenteApi): RepositorioAsistente
+
+    @Binds
     abstract fun ajustes(impl: RepositorioAjustesApi): RepositorioAjustes
 }

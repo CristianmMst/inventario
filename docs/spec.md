@@ -326,6 +326,19 @@ Realiza: `RF-INT-001` … `RF-INT-008`, `RF-AUT-005`
 - **Dado** cualquier capacidad de la app móvil, **cuando** se revisa el contrato de la API,
   **entonces** existe un endpoint que la cubre.
 
+### HU-21 — Preguntarle a mi inventario
+
+*Como dueña quiero escribir «¿qué está por agotarse?» y que me conteste con mis productos, sin
+tener que abrir reportes.*
+Realiza: `RF-AST-001` … `RF-AST-004`
+
+- **Dado** que abro el asistente, **cuando** pregunto qué me falta o por un producto,
+  **entonces** responde con el stock real de mi negocio, sin inventar cifras.
+- **Dado** otro negocio que usa el asistente, **cuando** pregunta lo mismo, **entonces** nunca
+  ve mis productos.
+- **Dado** que el asistente no responde, **cuando** envío un mensaje, **entonces** la app me lo
+  dice y me deja reintentar sin volver a escribirlo.
+
 ---
 
 ## 3. Requisitos funcionales
@@ -436,6 +449,18 @@ Realiza: `RF-INT-001` … `RF-INT-008`, `RF-AUT-005`
 | `RF-INT-006` | Cada entrega de webhook irá firmada con HMAC sobre el cuerpo usando el secreto de la suscripción, con el momento de firma incluido, para que el receptor verifique origen e integridad. Definido a nivel de contrato en v1. | HU-20 |
 | `RF-INT-007` | La entrega de webhooks será **al menos una vez**, con reintentos y espera creciente. Cada entrega lleva el identificador del evento para que el receptor descarte duplicados. Definido a nivel de contrato en v1. | HU-20 |
 | `RF-INT-008` | **Paridad API/app**: no existe ninguna capacidad de la app móvil sin endpoint equivalente accesible con credencial de servicio. Es un criterio de revisión de cada tarea, no solo un principio. | HU-20 |
+
+### 3.8 Asistente de inventario (`AST`)
+
+Añadido después de v1 (H12). El asistente corre en Retell AI; la API key de Retell vive solo
+en el servidor y la app habla siempre con nuestra API.
+
+| ID | Requisito | HU |
+|---|---|---|
+| `RF-AST-001` | Abrir y cerrar una conversación con el asistente. Cada conversación queda atada al negocio de la credencial que la abrió. Sin Retell configurado, la API responde `ASISTENTE_NO_CONFIGURADO`. | HU-21 |
+| `RF-AST-002` | Enviar un mensaje y recibir la respuesta del asistente. Un negocio no puede usar la conversación de otro (responde «no existe», como `RF-AUT-007`). | HU-21 |
+| `RF-AST-003` | El asistente consulta el inventario con tres herramientas: buscar producto (`RF-CAT-007`), bajo mínimo (`RF-REP-001`) y agotados (`RF-REP-007`). Responde solo con lo que devuelven. | HU-21 |
+| `RF-AST-004` | Las herramientas solo aceptan llamadas firmadas por Retell (`X-Retell-Signature`, HMAC-SHA256 con la API key, ventana de 5 min) y responden solo con datos del negocio dueño de la conversación. | HU-21 |
 
 ---
 

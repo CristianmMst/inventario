@@ -105,6 +105,13 @@ object MapeadorErrores {
         "TIPO_DE_EVENTO_DESCONOCIDO" to { _ -> "Uno de los tipos de evento no existe." },
         "SUSCRIPCION_NO_ENCONTRADA" to { _ -> "Esa suscripción no existe." },
         "VALORIZACION_SOLO_ACTUAL" to { _ -> "La valorización es siempre a hoy." },
+        // Asistente (RF-AST)
+        "ASISTENTE_NO_CONFIGURADO" to { _ -> "El asistente todavía no está activado." },
+        "ASISTENTE_NO_DISPONIBLE" to { _ -> "El asistente no responde ahora. Intenta de nuevo en un rato." },
+        "CHAT_NO_ENCONTRADO" to { _ -> "Esa conversación ya no existe. Empieza otra." },
+        "CHAT_TERMINADO" to { _ -> "Esa conversación ya terminó. Empieza otra." },
+        "FIRMA_INVALIDA" to { _ -> "El asistente no pudo consultar el inventario." },
+        "LLAMADA_INVALIDA" to { _ -> "El asistente no pudo consultar el inventario." },
     )
 
     val codigosConocidos: Set<String> get() = plantillas.keys

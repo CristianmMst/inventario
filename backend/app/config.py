@@ -22,6 +22,11 @@ class Ajustes(BaseSettings):
     imagenes_secreto: str = Field(SECRETO_DE_DESARROLLO, min_length=32)
     imagenes_url_minutos: int = 15
     log_json: bool = True
+    # Asistente (RF-AST): la API key de Retell vive solo aquí, nunca en la app.
+    retell_api_key: str = ""
+    retell_agent_id: str = ""
+    retell_url_base: str = "https://api.retellai.com"
+    url_publica_api: str = "https://api.mikelabs.com.co"
 
     @model_validator(mode="after")
     def _secretos_reales_en_produccion(self) -> "Ajustes":

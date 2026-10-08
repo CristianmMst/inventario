@@ -33,6 +33,9 @@ import co.inventario.data.red.dto.ResumenMermasDto
 import co.inventario.data.red.dto.SuscripcionDto
 import co.inventario.data.red.dto.SuscripcionNuevaDto
 import co.inventario.data.red.dto.ValorizacionDto
+import co.inventario.data.red.dto.ChatCreadoDto
+import co.inventario.data.red.dto.MensajeAsistenteDto
+import co.inventario.data.red.dto.RespuestaAsistenteDto
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.http.DELETE
@@ -290,6 +293,16 @@ interface InventarioApi {
 
     @GET("api/v1/reportes/discrepancias")
     suspend fun reporteDiscrepancias(@Query("cursor") cursor: String? = null, @Query("limit") limite: Int = 100): Response<PaginaDto<FilaDiscrepanciaDto>>
+
+    // Asistente (RF-AST). Pueden tardar: el interceptor de tiempos les da más margen.
+    @POST("api/v1/asistente/chats")
+    suspend fun crearChatAsistente(): Response<ChatCreadoDto>
+
+    @POST("api/v1/asistente/chats/{chatId}/mensajes")
+    suspend fun mensajeAsistente(@Path("chatId") chatId: String, @Body mensaje: MensajeAsistenteDto): Response<RespuestaAsistenteDto>
+
+    @DELETE("api/v1/asistente/chats/{chatId}")
+    suspend fun terminarChatAsistente(@Path("chatId") chatId: String): Response<Unit>
 
     // Integración (RF-AUT-005, RF-INT-005)
     @GET("api/v1/api-keys")

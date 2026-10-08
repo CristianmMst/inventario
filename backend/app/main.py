@@ -3,6 +3,7 @@ from fastapi import APIRouter, FastAPI
 from app.api.errores import registrar_manejadores
 from app.api.v1 import (
     api_keys,
+    asistente,
     auth,
     categorias,
     codigos_barras,
@@ -61,6 +62,7 @@ api_v1.include_router(eventos.router)
 api_v1.include_router(webhooks.router)
 api_v1.include_router(reportes.router)
 api_v1.include_router(integracion.router)
+api_v1.include_router(asistente.router)
 app.include_router(api_v1)
 
 # RNF-17: seguridad, ejemplos de petición y errores documentados en el 100% de las rutas.

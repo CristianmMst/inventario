@@ -199,3 +199,13 @@ data class StockDto(
     val cantidad: String,
     @SerialName("actualizado_en") val actualizadoEn: String? = null,
 )
+
+// Asistente (RF-AST)
+@Serializable
+data class ChatCreadoDto(@SerialName("chat_id") val chatId: String)
+
+@Serializable
+data class MensajeAsistenteDto(val contenido: String)
+
+@Serializable
+data class RespuestaAsistenteDto(val mensajes: List<String> = emptyList())

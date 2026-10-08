@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -27,6 +29,20 @@ class SesionEventos @javax.inject.Inject constructor() : AvisoSesionCerrada {
     val cerradas: SharedFlow<Unit> = _cerradas.asSharedFlow()
     override fun sesionCerrada() {
         _cerradas.tryEmit(Unit)
+    }
+}
+
+/**
+ * El asistente (RF-AST-002) consulta el inventario y redacta antes de responder: puede pasar de
+ * los 20 s de lectura del resto de la API. Solo sus rutas esperan más.
+ */
+internal object InterceptorTiempoAsistente : Interceptor {
+    private const val SEGUNDOS_ASISTENTE = 75
+
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val esAsistente = chain.request().url.encodedPath.contains("/api/v1/asistente/")
+        val cadena = if (esAsistente) chain.withReadTimeout(SEGUNDOS_ASISTENTE, TimeUnit.SECONDS) else chain
+        return cadena.proceed(chain.request())
     }
 }
 
@@ -61,6 +77,7 @@ object ModuloRed {
             base.addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
         }
         return base
+            .addInterceptor(InterceptorTiempoAsistente)
             .addInterceptor(InterceptorAutenticacion(almacen))
             .authenticator(RenovadorSesion(almacen, configuracion.baseUrl, aviso, base.build()))
             .build()

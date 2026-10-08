@@ -15,6 +15,10 @@ fi
 . "$SECRETOS"
 export JWT_SECRETO="${JWT_SECRETO:-$JWT_SECRETO_GENERADO}"
 export IMAGENES_SECRETO="${IMAGENES_SECRETO:-$IMAGENES_SECRETO_GENERADO}"
+# Asistente (RF-AST): la API key de Retell no se genera; llega por variable de entorno o se
+# añade a mano como `RETELL_API_KEY=...` en $SECRETOS. Sin ella el asistente responde 503.
+export RETELL_API_KEY="${RETELL_API_KEY:-}"
+[ -n "$RETELL_API_KEY" ] || echo "Aviso: sin RETELL_API_KEY, el asistente queda desactivado"
 
 # Base de datos interna: solo escucha en 127.0.0.1, así que no se expone fuera del contenedor.
 if [ ! -s "$PGDATA/PG_VERSION" ]; then

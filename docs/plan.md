@@ -316,6 +316,8 @@ paginada por cursor (`?cursor=&limit=`, máx. 100), toda escritura de negocio ac
 | `GET /reportes/bajo-minimo` · `/agotados` · `/sin-movimiento` · `/valorizacion` · `/compras` · `/mermas` · `/discrepancias` | Los siete reportes | `RF-REP-001`, `RF-REP-007`, `RF-REP-002`, `RF-REP-003`, `RF-REP-005`, `RF-REP-006`; todos paginados y accesibles por API (`RF-REP-008`) |
 | `GET /eventos?desde_secuencia=&tipo=` | Eventos de dominio paginados | `RF-INT-004` |
 | `GET` · `POST /webhooks` · `DELETE /webhooks/{id}` | Suscripciones (sin entrega en v1) | `RF-INT-005` |
+| `POST /asistente/chats` · `POST /asistente/chats/{id}/mensajes` · `DELETE /asistente/chats/{id}` | Conversación con el asistente; el servidor llama a Retell con su clave | `RF-AST-001`, `RF-AST-002` |
+| `POST /asistente/herramientas/{buscar-producto\|stock-bajo\|agotados}` | Las llama Retell, no la app. Firma `X-Retell-Signature` en vez de credencial | `RF-AST-003`, `RF-AST-004` |
 
 **Paridad `RF-INT-008`.** Toda la tabla es accesible tanto con `Authorization: Bearer` como
 con `X-API-Key`. No hay endpoints exclusivos de la app ni exclusivos de servicio.

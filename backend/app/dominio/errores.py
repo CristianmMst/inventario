@@ -36,3 +36,7 @@ class NoAutenticado(ErrorDominio):
 
 class SinPermiso(ErrorDominio):
     """Hay credencial pero no autoriza la acción."""
+
+
+class ServicioExterno(ErrorDominio):
+    """Un servicio del que dependemos (el asistente de Retell) no está configurado o falló."""

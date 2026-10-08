@@ -117,14 +117,17 @@ async def test_rf_int_007_la_entrega_al_menos_una_vez_con_reintentos_figura_en_e
 
 
 def test_rf_int_005_ninguna_peticion_saliente_en_el_codigo() -> None:
-    """En v1 no hay entrega: el backend no hace peticiones HTTP salientes a las suscripciones."""
+    """En v1 no hay entrega: el backend no hace peticiones HTTP salientes a las suscripciones.
+    La única salida permitida es el cliente de Retell del asistente (RF-AST-001), que habla con
+    un servicio fijo, nunca con una URL de suscripción."""
+    permitidos = {Path("app/infra/retell.py")}
     sospechosos = re.compile(
         r"\b(httpx\.(AsyncClient|post|get)|aiohttp|requests\.(post|get)|urlopen)\b"
     )
     culpables = [
         str(a.relative_to(RAIZ))
         for a in (RAIZ / "app").rglob("*.py")
-        if sospechosos.search(a.read_text("utf-8"))
+        if a.relative_to(RAIZ) not in permitidos and sospechosos.search(a.read_text("utf-8"))
     ]
     assert culpables == []
 

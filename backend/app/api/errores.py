@@ -18,6 +18,7 @@ _STATUS_POR_TIPO: dict[type[err.ErrorDominio], int] = {
     err.ValidacionInvalida: 422,
     err.NoAutenticado: 401,
     err.SinPermiso: 403,
+    err.ServicioExterno: 503,
 }
 
 _CODIGO_POR_STATUS: dict[int, tuple[str, str]] = {

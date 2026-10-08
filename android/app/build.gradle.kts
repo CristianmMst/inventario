@@ -67,6 +67,7 @@ dependencies {
     implementation(project(":feature:facturas"))
     implementation(project(":feature:reportes"))
     implementation(project(":feature:ajustes"))
+    implementation(project(":feature:asistente"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)

@@ -244,6 +244,23 @@ la ficha apilaba ocho botones idénticos.
 | `T-123` | Pantalla de arranque sobre el verde de marca | `app/res/values/themes.xml`, `app/MainActivity.kt` | `RNF-10` | Arranque sin destello blanco, y sigue por debajo de 3 s | `T-122` | |
 | `T-124` | Repaso de accesibilidad y previsualizaciones de los componentes | `core/designsystem/componentes/Previsualizaciones.kt` | `RNF-09` | Todo icono accionable con `contentDescription`; títulos como encabezado | `T-121` | ∥ |
 
+## H12 · Asistente de inventario (Retell AI)
+
+Chat dentro de la app que responde con el stock real del negocio (`HU-21`). Retell guarda la
+conversación y redacta; nuestra API guarda la clave, ata cada chat a su negocio y sirve las
+herramientas firmadas. Reutiliza el agente de chat que ya existía en la cuenta de Retell: solo
+se le cambiaron las herramientas, porque `query_inventory` leía `/integracion/stock-bajo`, que
+devuelve los productos de **todos** los negocios.
+
+| ID | Tarea | Archivos | Cubre | Verificación | Dep. | ∥ |
+|---|---|---|---|---|---|---|
+| `T-125` | Cliente de Retell y verificación de firma | `backend/app/infra/retell.py`, `app/config.py` | `RF-AST-001`, `RF-AST-004` | `test_firma_retell.py`: otra clave, otro cuerpo o firma vieja → inválida | — | |
+| `T-126` | Tabla `chats_asistente` (chat → negocio) | `app/modelos/asistente.py`, `alembic/versions/0020_*.py` | `RF-AST-001`, `RN-19` | `test_migraciones` sin diferencias modelo/migración | `T-125` | |
+| `T-127` | Endpoints de chat para la app | `app/api/v1/asistente.py`, `app/servicios/asistente.py` | `RF-AST-001`, `RF-AST-002` | Un negocio no usa el chat de otro (404); terminar es idempotente | `T-126` | |
+| `T-128` | Herramientas firmadas para Retell | `app/api/v1/asistente.py` | `RF-AST-003`, `RF-AST-004` | Sin firma → 401; chat ajeno → 404; datos solo del negocio del chat | `T-127` | |
+| `T-129` | Script que adapta el agente de chat de Retell | `backend/scripts/crear_agente_retell.py` | `RF-AST-003` | `--actualizar` es repetible: conserva nodos y PQR, cambia solo las herramientas | `T-128` | |
+| `T-130` | Pantalla «Asistente» en el menú «Más» | `feature/asistente/**`, `core/data/.../RepositorioAsistente.kt`, `app/navegacion/*.kt` | `RF-AST-002`, `RF-INT-008` | `AsistenteViewModelTest`: chat perezoso, reintento sin duplicar, chat terminado se reemplaza | `T-127` | ∥ |
+
 ## Notas de ejecución
 
 **Cadencia.** La implementación corre **de corrido, sin pedir aprobación tarea por tarea**:

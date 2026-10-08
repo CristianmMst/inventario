@@ -26,6 +26,8 @@ PUBLICAS = {
     ("get", "/api/v1/salud"),
     ("get", "/api/v1/integracion/stock-bajo"),
     ("get", "/api/v1/imagenes/{identificador}"),
+    # Las llama Retell con la firma `X-Retell-Signature`, no con credencial (RF-AST-004).
+    ("post", "/api/v1/asistente/herramientas/{herramienta}"),
 }
 # Manipulan la sesión de un usuario: una credencial de servicio no tiene sesión que cerrar.
 SOLO_USUARIO = {("post", "/api/v1/auth/logout"), ("patch", "/api/v1/auth/password")}

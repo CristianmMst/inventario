@@ -39,4 +39,7 @@ sealed interface Ruta {
     @Serializable data object NuevaFactura : Ruta
     @Serializable data object Reportes : Ruta
     @Serializable data object Ajustes : Ruta
+
+    // H12: asistente de inventario (RF-AST)
+    @Serializable data object Asistente : Ruta
 }

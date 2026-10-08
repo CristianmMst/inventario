@@ -22,6 +22,7 @@ import co.inventario.designsystem.componentes.LocalPendientesDeEnvio
 import co.inventario.designsystem.tema.Iconos
 import co.inventario.domain.modelo.TipoMovimiento
 import co.inventario.feature.ajustes.PantallaAjustes
+import co.inventario.feature.asistente.PantallaAsistente
 import co.inventario.feature.auth.PantallaLogin
 import co.inventario.feature.auth.PantallaRegistro
 import co.inventario.feature.catalogo.AccionesFicha
@@ -270,6 +271,7 @@ fun NavegacionInventario(
                     alVolver = { nav.popBackStack() },
                 )
             }
+            composable<Ruta.Asistente> { PantallaAsistente(alVolver = { nav.popBackStack() }) }
             composable<Ruta.Ajustes> {
                 val sesion: SesionViewModel = hiltViewModel()
                 PantallaAjustes(

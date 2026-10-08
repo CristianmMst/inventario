@@ -71,6 +71,14 @@ fun PantallaMenu(
         ) {
             CabeceraNegocio(nombreNegocio, moneda)
 
+            FilaMenu(
+                icono = Iconos.asistente,
+                titulo = "Asistente",
+                subtitulo = "Pregunta qué falta, qué se acabó o cuánto queda",
+                alPulsar = { irA(Ruta.Asistente) },
+            )
+
+            Separador()
             Seccion("Compras")
             FilaMenu(
                 icono = Iconos.reponer,

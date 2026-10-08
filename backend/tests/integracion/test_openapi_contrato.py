@@ -42,6 +42,8 @@ PUBLICAS = {
     ("GET", "/api/v1/integracion/stock-bajo"),
     # Con `t` sirve la imagen firmada sin credencial (RNF-11); sin `t` la exige en el código.
     ("GET", "/api/v1/imagenes/{identificador}"),
+    # Las llama Retell: se autentican con la firma `X-Retell-Signature` (RF-AST-004).
+    ("POST", "/api/v1/asistente/herramientas/{herramienta}"),
 }
 # Operan sobre la sesión de un usuario: no tienen sentido con credencial de servicio.
 SOLO_USUARIO = {

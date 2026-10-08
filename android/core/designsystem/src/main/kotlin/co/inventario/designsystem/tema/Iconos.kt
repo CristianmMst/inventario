@@ -2,6 +2,7 @@ package co.inventario.designsystem.tema
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Inventory2
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.WifiOff
 
@@ -93,6 +95,8 @@ object Iconos {
     val factura = Icons.Outlined.ReceiptLong
     val reporte = Icons.Outlined.BarChart
     val ajustes = Icons.Outlined.Settings
+    val asistente = Icons.Outlined.SmartToy
+    val enviar = Icons.AutoMirrored.Outlined.Send
     val cerrarSesion = Icons.AutoMirrored.Outlined.Logout
     val fecha = Icons.Outlined.CalendarToday
 
